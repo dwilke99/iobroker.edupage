@@ -1,0 +1,170 @@
+{
+	"common": {
+		"name": "edupage",
+		"version": "0.0.1",
+		"news": {
+			"0.0.1": {
+				"en": "initial release",
+				"de": "Erstveröffentlichung",
+				"ru": "Начальная версия",
+				"pt": "lançamento inicial",
+				"nl": "Eerste uitgave",
+				"fr": "Première version",
+				"it": "Versione iniziale",
+				"es": "Versión inicial",
+				"pl": "Pierwsze wydanie",
+				"uk": "Початкова версія",
+				"zh-cn": "首次出版"
+			}
+		},
+		"titleLang": {
+			"en": "Edupage",
+			"de": "Edupage",
+			"ru": "Эдупаж",
+			"pt": "Edupage",
+			"nl": "Onderwijs",
+			"fr": "Éducation",
+			"it": "Edupage",
+			"es": "Edupage",
+			"pl": "Edupage",
+			"uk": "Edupage",
+			"zh-cn": "教育页面"
+		},
+		"desc": {
+			"en": "Hole Hausaufgaben und Mitteilungen von Edupage",
+			"de": "Hole Hausaufgaben und Mitteilungen von Edupage",
+			"ru": "Hole Hausaufgaben und Mitteilungen von Edupage",
+			"pt": "Buraco Hausaufgaben und Mitteilungen von Edupage",
+			"nl": "Hole Hausaufgaben en Mitteilungen von Edupage",
+			"fr": "Hole Hausaufgaben et Mitteilungen von Edupage",
+			"it": "Hole Hausaufgaben und Mitteilungen von Edupage",
+			"es": "Hole Hausaufgaben und Mitteilungen von Edupage",
+			"pl": "Hole Hausaufgaben und Mitteilungen von Edupage",
+			"uk": "Hole Hausaufgaben und Mitteilungen von Edupage",
+			"zh-cn": "孔豪萨夫加本和教育中心"
+		},
+		"authors": [
+			"dupan99 <dupan99@gmail.com>"
+		],
+		"keywords": [
+			"template",
+			"automation",
+			"IoT",
+			"integration"
+		],
+		"licenseInformation": {
+			"type": "free",
+			"license": "MIT"
+		},
+		"platform": "Javascript/Node.js",
+		"icon": "edupage.png",
+		"enabled": true,
+		"extIcon": "https://raw.githubusercontent.com/dwilke99/ioBroker.edupage/main/admin/edupage.png",
+		"readme": "https://github.com/dwilke99/ioBroker.edupage/blob/main/README.md",
+		"loglevel": "info",
+		"tier": 3,
+		"mode": "daemon",
+		"type": "misc-data",
+		"compact": true,
+		"connectionType": "cloud",
+		"dataSource": "poll",
+		"adminUI": {
+			"config": "materialize"
+		},
+		"dependencies": [
+			{
+				"js-controller": ">=6.0.11"
+			}
+		],
+		"globalDependencies": [
+			{
+				"admin": ">=7.0.23"
+			}
+		]
+	},
+	"native": {
+		"username": "",
+		"password": "",
+		"schoolSubdomain": "",
+		"interval": 30
+	},
+	"objects": [],
+	"instanceObjects": [
+		{
+			"_id": "info",
+			"type": "channel",
+			"common": {
+				"name": "Information"
+			},
+			"native": {}
+		},
+		{
+			"_id": "info.connection",
+			"type": "state",
+			"common": {
+				"name": "Connection status",
+				"type": "boolean",
+				"role": "indicator.connected",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "data",
+			"type": "channel",
+			"common": {
+				"name": "Data"
+			},
+			"native": {}
+		},
+		{
+			"_id": "data.homework_json",
+			"type": "state",
+			"common": {
+				"name": "Homeworks (JSON)",
+				"type": "string",
+				"role": "text",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "data.homework_count",
+			"type": "state",
+			"common": {
+				"name": "Homeworks count",
+				"type": "number",
+				"role": "value",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "data.notifications_json",
+			"type": "state",
+			"common": {
+				"name": "Notifications (JSON)",
+				"type": "string",
+				"role": "text",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "data.notifications_count",
+			"type": "state",
+			"common": {
+				"name": "Notifications count",
+				"type": "number",
+				"role": "value",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		}
+	]
+}
