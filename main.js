@@ -106,9 +106,11 @@ class Edupage extends utils.Adapter {
 					id: hw.id,
 					subject: hw.subject?.name || null,
 					title: hw.title || null,
-					description: hw.description || null,
-					dueDate: hw.dueDate || null,
-					assignedDate: hw.assignedDate || null
+					description: hw.details || null,
+					dueDate: hw.toDate || null,
+					assignedDate: hw.fromDate || null,
+					isDone: hw.isFinished || false,
+					teacher: hw.owner?.name || null
 				};
 			});
 
@@ -123,17 +125,73 @@ class Edupage extends utils.Adapter {
 				};
 			});
 
-			// Save homeworks data
+			// Split homeworks into pending and completed
+			const pendingHomeworks = homeworksData.filter(hw => !hw.isDone);
+			const completedHomeworks = homeworksData.filter(hw => hw.isDone);
+
+			// Filter notifications by today's date
+			const today = new Date();
+			today.setHours(0, 0, 0, 0);
+			const todayNotifications = timelineData.filter(msg => {
+				if (!msg.date) return false;
+				const msgDate = new Date(msg.date);
+				msgDate.setHours(0, 0, 0, 0);
+				return msgDate.getTime() === today.getTime();
+			});
+
+			// Extract student name from user object
+			let studentName = '';
+			if (this.edupageClient.user) {
+				studentName = this.edupageClient.user.name || 
+					(this.edupageClient.user.firstName && this.edupageClient.user.lastName 
+						? `${this.edupageClient.user.firstName} ${this.edupageClient.user.lastName}` 
+						: '') || '';
+			}
+
+			// Extract unique teachers from homeworks and notifications
+			const teachersSet = new Set();
+			homeworksData.forEach(hw => {
+				if (hw.teacher) teachersSet.add(hw.teacher);
+			});
+			timelineData.forEach(msg => {
+				if (msg.author) teachersSet.add(msg.author);
+			});
+			const teachersList = Array.from(teachersSet).sort();
+
+			// Extract unique subjects/classes from homeworks
+			const classesSet = new Set();
+			homeworksData.forEach(hw => {
+				if (hw.subject) classesSet.add(hw.subject);
+			});
+			const classesList = Array.from(classesSet).sort();
+
+			// Save homeworks data (legacy states for backward compatibility)
 			const homeworkJson = JSON.stringify(homeworksData);
 			await this.setState('data.homework_json', { val: homeworkJson, ack: true });
 			await this.setState('data.homework_count', { val: homeworks.length, ack: true });
 
-			// Save notifications data
+			// Save pending and completed homeworks
+			const pendingJson = JSON.stringify(pendingHomeworks);
+			const completedJson = JSON.stringify(completedHomeworks);
+			await this.setState('data.homework.pending_json', { val: pendingJson, ack: true });
+			await this.setState('data.homework.completed_json', { val: completedJson, ack: true });
+
+			// Save notifications data (legacy states for backward compatibility)
 			const notificationsJson = JSON.stringify(timelineData);
 			await this.setState('data.notifications_json', { val: notificationsJson, ack: true });
 			await this.setState('data.notifications_count', { val: timeline.length, ack: true });
 
-			this.log.debug(`Synced ${homeworks.length} homeworks and ${timeline.length} notifications`);
+			// Save today's and all notifications
+			const todayNotificationsJson = JSON.stringify(todayNotifications);
+			await this.setState('data.notifications.today_json', { val: todayNotificationsJson, ack: true });
+			await this.setState('data.notifications.all_json', { val: notificationsJson, ack: true });
+
+			// Save general info
+			await this.setState('info.student_name', { val: studentName, ack: true });
+			await this.setState('info.teachers_json', { val: JSON.stringify(teachersList), ack: true });
+			await this.setState('info.classes_json', { val: JSON.stringify(classesList), ack: true });
+
+			this.log.debug(`Synced ${homeworks.length} homeworks (${pendingHomeworks.length} pending, ${completedHomeworks.length} completed) and ${timeline.length} notifications (${todayNotifications.length} today)`);
 
 			// Update connection status
 			await this.setState('info.connection', { val: true, ack: true });

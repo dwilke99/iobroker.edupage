@@ -165,6 +165,106 @@
 				"write": false
 			},
 			"native": {}
+		},
+		{
+			"_id": "data.homework",
+			"type": "channel",
+			"common": {
+				"name": "Homework"
+			},
+			"native": {}
+		},
+		{
+			"_id": "data.homework.pending_json",
+			"type": "state",
+			"common": {
+				"name": "Pending Homeworks (JSON)",
+				"type": "string",
+				"role": "text",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "data.homework.completed_json",
+			"type": "state",
+			"common": {
+				"name": "Completed Homeworks (JSON)",
+				"type": "string",
+				"role": "text",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "data.notifications",
+			"type": "channel",
+			"common": {
+				"name": "Notifications"
+			},
+			"native": {}
+		},
+		{
+			"_id": "data.notifications.today_json",
+			"type": "state",
+			"common": {
+				"name": "Today's Notifications (JSON)",
+				"type": "string",
+				"role": "text",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "data.notifications.all_json",
+			"type": "state",
+			"common": {
+				"name": "All Notifications (JSON)",
+				"type": "string",
+				"role": "text",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "info.student_name",
+			"type": "state",
+			"common": {
+				"name": "Student Name",
+				"type": "string",
+				"role": "text",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "info.teachers_json",
+			"type": "state",
+			"common": {
+				"name": "Teachers (JSON)",
+				"type": "string",
+				"role": "text",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "info.classes_json",
+			"type": "state",
+			"common": {
+				"name": "Classes/Subjects (JSON)",
+				"type": "string",
+				"role": "text",
+				"read": true,
+				"write": false
+			},
+			"native": {}
 		}
 	]
 }
