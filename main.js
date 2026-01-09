@@ -53,17 +53,18 @@ class Edupage extends utils.Adapter {
 		this.log.info(`Connecting to Edupage with subdomain: ${schoolSubdomain}`);
 
 		try {
-			// Initialize Edupage client
-			this.edupageClient = new EdupageClient(schoolSubdomain);
+			// Initialize Edupage client (constructor takes no parameters)
+			this.edupageClient = new EdupageClient();
 
-			// Login to Edupage
+			// Login to Edupage (login automatically calls refresh())
+			// The subdomain is determined from the login process
 			await this.edupageClient.login(username, password);
 			this.log.info('Successfully logged in to Edupage');
 
 			// Set connection status
 			await this.setState('info.connection', { val: true, ack: true });
 
-			// Perform initial sync
+			// Perform initial sync (data is already loaded from login, but we'll sync it)
 			await this.syncData();
 
 			// Set up polling interval (convert minutes to milliseconds)
@@ -91,21 +92,48 @@ class Edupage extends utils.Adapter {
 		try {
 			this.log.debug('Fetching data from Edupage...');
 
-			// Fetch homeworks and notifications
-			const homeworks = await this.edupageClient.getHomeworks();
-			const notifications = await this.edupageClient.getNotifications();
+			// Refresh timeline data to get latest homeworks and notifications
+			await this.edupageClient.refreshTimeline();
+
+			// Access homeworks and timeline (notifications) as properties
+			const homeworks = this.edupageClient.homeworks || [];
+			const timeline = this.edupageClient.timeline || [];
+
+			// Convert objects to plain JSON for storage
+			const homeworksData = homeworks.map(hw => {
+				// Extract relevant data from Homework objects
+				return {
+					id: hw.id,
+					subject: hw.subject?.name || null,
+					title: hw.title || null,
+					description: hw.description || null,
+					dueDate: hw.dueDate || null,
+					assignedDate: hw.assignedDate || null
+				};
+			});
+
+			const timelineData = timeline.map(msg => {
+				// Extract relevant data from Message objects
+				return {
+					id: msg.id,
+					type: msg.type || null,
+					text: msg.text || null,
+					date: msg.date || null,
+					author: msg.author?.name || null
+				};
+			});
 
 			// Save homeworks data
-			const homeworkJson = JSON.stringify(homeworks);
+			const homeworkJson = JSON.stringify(homeworksData);
 			await this.setState('data.homework_json', { val: homeworkJson, ack: true });
 			await this.setState('data.homework_count', { val: homeworks.length, ack: true });
 
 			// Save notifications data
-			const notificationsJson = JSON.stringify(notifications);
+			const notificationsJson = JSON.stringify(timelineData);
 			await this.setState('data.notifications_json', { val: notificationsJson, ack: true });
-			await this.setState('data.notifications_count', { val: notifications.length, ack: true });
+			await this.setState('data.notifications_count', { val: timeline.length, ack: true });
 
-			this.log.debug(`Synced ${homeworks.length} homeworks and ${notifications.length} notifications`);
+			this.log.debug(`Synced ${homeworks.length} homeworks and ${timeline.length} notifications`);
 
 			// Update connection status
 			await this.setState('info.connection', { val: true, ack: true });
