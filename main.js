@@ -10,7 +10,7 @@ const utils = require('@iobroker/adapter-core');
 
 // Load your modules here, e.g.:
 // const fs = require('fs');
-const EdupageAPI = require('edupage-api');
+const { Edupage: EdupageClient } = require('edupage-api');
 
 class Edupage extends utils.Adapter {
 	/**
@@ -54,7 +54,7 @@ class Edupage extends utils.Adapter {
 
 		try {
 			// Initialize Edupage client
-			this.edupageClient = new EdupageAPI(schoolSubdomain);
+			this.edupageClient = new EdupageClient(schoolSubdomain);
 
 			// Login to Edupage
 			await this.edupageClient.login(username, password);
