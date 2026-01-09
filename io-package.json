@@ -86,7 +86,8 @@
 		"username": "",
 		"password": "",
 		"schoolSubdomain": "",
-		"interval": 30
+		"interval": 30,
+		"studentName": ""
 	},
 	"objects": [],
 	"instanceObjects": [
@@ -248,7 +249,7 @@
 			"common": {
 				"name": "Teachers (JSON)",
 				"type": "string",
-				"role": "text",
+				"role": "json",
 				"read": true,
 				"write": false
 			},
@@ -261,6 +262,38 @@
 				"name": "Classes/Subjects (JSON)",
 				"type": "string",
 				"role": "text",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "data.classes",
+			"type": "channel",
+			"common": {
+				"name": "Classes"
+			},
+			"native": {}
+		},
+		{
+			"_id": "data.classes.today_json",
+			"type": "state",
+			"common": {
+				"name": "Today's Classes (JSON)",
+				"type": "string",
+				"role": "json",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "data.classes.tomorrow_json",
+			"type": "state",
+			"common": {
+				"name": "Tomorrow's Classes (JSON)",
+				"type": "string",
+				"role": "json",
 				"read": true,
 				"write": false
 			},

@@ -68,5 +68,18 @@ systemDictionary = {
 		'pl': 'Interwał odpytywania (minuty)',
 		'uk': 'Інтервал опитування (хвилини)',
 		'zh-cn': '轮询间隔（分钟）'
+	},
+	'studentName': {
+		'en': 'Student Name (Optional - for filtering)',
+		'de': 'Schülername (Optional - zum Filtern)',
+		'ru': 'Имя ученика (Необязательно - для фильтрации)',
+		'pt': 'Nome do aluno (Opcional - para filtragem)',
+		'nl': 'Naam van de student (Optioneel - voor filtering)',
+		'fr': 'Nom de l\'étudiant (Optionnel - pour le filtrage)',
+		'it': 'Nome dello studente (Opzionale - per il filtraggio)',
+		'es': 'Nombre del estudiante (Opcional - para filtrar)',
+		'pl': 'Imię ucznia (Opcjonalne - do filtrowania)',
+		'uk': 'Ім\'я учня (Необов\'язково - для фільтрації)',
+		'zh-cn': '学生姓名（可选 - 用于过滤）'
 	}
 };

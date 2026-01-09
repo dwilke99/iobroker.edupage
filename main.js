@@ -42,6 +42,7 @@ class Edupage extends utils.Adapter {
 		const password = this.config.password;
 		const schoolSubdomain = this.config.schoolSubdomain;
 		const interval = this.config.interval || 30;
+		const studentName = this.config.studentName || '';
 
 		// Validate configuration
 		if (!username || !password || !schoolSubdomain) {
@@ -60,6 +61,11 @@ class Edupage extends utils.Adapter {
 			// The subdomain is determined from the login process
 			await this.edupageClient.login(username, password);
 			this.log.info('Successfully logged in to Edupage');
+
+			// Log student filtering info if configured
+			if (studentName) {
+				this.log.info(`Student name filter configured: ${studentName}. Using main account data (API doesn't support direct filtering).`);
+			}
 
 			// Set connection status
 			await this.setState('info.connection', { val: true, ack: true });
@@ -95,6 +101,27 @@ class Edupage extends utils.Adapter {
 			// Refresh timeline data to get latest homeworks and notifications
 			await this.edupageClient.refreshTimeline();
 
+			// Fetch timetable for today and tomorrow
+			const today = new Date();
+			today.setHours(0, 0, 0, 0);
+			const tomorrow = new Date(today);
+			tomorrow.setDate(tomorrow.getDate() + 1);
+
+			let todayTimetable = null;
+			let tomorrowTimetable = null;
+
+			try {
+				todayTimetable = await this.edupageClient.getTimetableForDate(today);
+			} catch (error) {
+				this.log.warn(`Failed to fetch today's timetable: ${error.message}`);
+			}
+
+			try {
+				tomorrowTimetable = await this.edupageClient.getTimetableForDate(tomorrow);
+			} catch (error) {
+				this.log.warn(`Failed to fetch tomorrow's timetable: ${error.message}`);
+			}
+
 			// Access homeworks and timeline (notifications) as properties
 			const homeworks = this.edupageClient.homeworks || [];
 			const timeline = this.edupageClient.timeline || [];
@@ -129,9 +156,7 @@ class Edupage extends utils.Adapter {
 			const pendingHomeworks = homeworksData.filter(hw => !hw.isDone);
 			const completedHomeworks = homeworksData.filter(hw => hw.isDone);
 
-			// Filter notifications by today's date
-			const today = new Date();
-			today.setHours(0, 0, 0, 0);
+			// Filter notifications by today's date (reuse today variable from above)
 			const todayNotifications = timelineData.filter(msg => {
 				if (!msg.date) return false;
 				const msgDate = new Date(msg.date);
@@ -148,15 +173,59 @@ class Edupage extends utils.Adapter {
 						: '') || '';
 			}
 
-			// Extract unique teachers from homeworks and notifications
-			const teachersSet = new Set();
+			// Extract unique teachers from homeworks, notifications, and timetable
+			const teachersMap = new Map(); // Use Map to store teacher -> subject mapping
+			
+			// From homeworks
 			homeworksData.forEach(hw => {
-				if (hw.teacher) teachersSet.add(hw.teacher);
+				if (hw.teacher && hw.subject) {
+					if (!teachersMap.has(hw.teacher)) {
+						teachersMap.set(hw.teacher, hw.subject);
+					}
+				}
 			});
+			
+			// From notifications
 			timelineData.forEach(msg => {
-				if (msg.author) teachersSet.add(msg.author);
+				if (msg.author) {
+					if (!teachersMap.has(msg.author)) {
+						teachersMap.set(msg.author, null);
+					}
+				}
 			});
-			const teachersList = Array.from(teachersSet).sort();
+
+			// From timetable lessons
+			if (todayTimetable && todayTimetable.lessons) {
+				todayTimetable.lessons.forEach(lesson => {
+					if (lesson.teachers && lesson.teachers.length > 0 && lesson.subject) {
+						lesson.teachers.forEach(teacher => {
+							const teacherName = teacher.name || teacher.toString();
+							if (!teachersMap.has(teacherName)) {
+								teachersMap.set(teacherName, lesson.subject.name || null);
+							}
+						});
+					}
+				});
+			}
+
+			if (tomorrowTimetable && tomorrowTimetable.lessons) {
+				tomorrowTimetable.lessons.forEach(lesson => {
+					if (lesson.teachers && lesson.teachers.length > 0 && lesson.subject) {
+						lesson.teachers.forEach(teacher => {
+							const teacherName = teacher.name || teacher.toString();
+							if (!teachersMap.has(teacherName)) {
+								teachersMap.set(teacherName, lesson.subject.name || null);
+							}
+						});
+					}
+				});
+			}
+
+			// Convert to array of objects
+			const teachersList = Array.from(teachersMap.entries()).map(([name, subject]) => ({
+				name: name,
+				subject: subject
+			})).sort((a, b) => a.name.localeCompare(b.name));
 
 			// Extract unique subjects/classes from homeworks
 			const classesSet = new Set();
@@ -186,12 +255,70 @@ class Edupage extends utils.Adapter {
 			await this.setState('data.notifications.today_json', { val: todayNotificationsJson, ack: true });
 			await this.setState('data.notifications.all_json', { val: notificationsJson, ack: true });
 
+			// Process timetable lessons for today
+			let todayLessons = [];
+			if (todayTimetable && todayTimetable.lessons) {
+				todayLessons = todayTimetable.lessons.map(lesson => {
+					const teacherNames = lesson.teachers && lesson.teachers.length > 0
+						? lesson.teachers.map(t => t.name || t.toString()).join(', ')
+						: null;
+					
+					return {
+						period: lesson.period ? {
+							id: lesson.period.id,
+							name: lesson.period.name || null,
+							startTime: lesson.period.startTime || null,
+							endTime: lesson.period.endTime || null
+						} : null,
+						subject: lesson.subject ? lesson.subject.name : null,
+						teacher: teacherNames,
+						topic: lesson.curriculum || null,
+						classroom: lesson.classrooms && lesson.classrooms.length > 0
+							? lesson.classrooms.map(c => c.name || c.toString()).join(', ')
+							: null,
+						date: lesson.date ? lesson.date.toISOString() : null
+					};
+				});
+			}
+
+			// Process timetable lessons for tomorrow
+			let tomorrowLessons = [];
+			if (tomorrowTimetable && tomorrowTimetable.lessons) {
+				tomorrowLessons = tomorrowTimetable.lessons.map(lesson => {
+					const teacherNames = lesson.teachers && lesson.teachers.length > 0
+						? lesson.teachers.map(t => t.name || t.toString()).join(', ')
+						: null;
+					
+					return {
+						period: lesson.period ? {
+							id: lesson.period.id,
+							name: lesson.period.name || null,
+							startTime: lesson.period.startTime || null,
+							endTime: lesson.period.endTime || null
+						} : null,
+						subject: lesson.subject ? lesson.subject.name : null,
+						teacher: teacherNames,
+						topic: lesson.curriculum || null,
+						classroom: lesson.classrooms && lesson.classrooms.length > 0
+							? lesson.classrooms.map(c => c.name || c.toString()).join(', ')
+							: null,
+						date: lesson.date ? lesson.date.toISOString() : null
+					};
+				});
+			}
+
 			// Save general info
-			await this.setState('info.student_name', { val: studentName, ack: true });
+			const configStudentName = this.config.studentName || '';
+			const extractedStudentName = studentName || configStudentName;
+			await this.setState('info.student_name', { val: extractedStudentName, ack: true });
 			await this.setState('info.teachers_json', { val: JSON.stringify(teachersList), ack: true });
 			await this.setState('info.classes_json', { val: JSON.stringify(classesList), ack: true });
 
-			this.log.debug(`Synced ${homeworks.length} homeworks (${pendingHomeworks.length} pending, ${completedHomeworks.length} completed) and ${timeline.length} notifications (${todayNotifications.length} today)`);
+			// Save timetable data
+			await this.setState('data.classes.today_json', { val: JSON.stringify(todayLessons), ack: true });
+			await this.setState('data.classes.tomorrow_json', { val: JSON.stringify(tomorrowLessons), ack: true });
+
+			this.log.debug(`Synced ${homeworks.length} homeworks (${pendingHomeworks.length} pending, ${completedHomeworks.length} completed), ${timeline.length} notifications (${todayNotifications.length} today), ${todayLessons.length} lessons today, ${tomorrowLessons.length} lessons tomorrow`);
 
 			// Update connection status
 			await this.setState('info.connection', { val: true, ack: true });
