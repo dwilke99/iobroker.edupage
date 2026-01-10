@@ -125,19 +125,43 @@ class Edupage extends utils.Adapter {
 			// Format date as YYYY-MM-DD
 			const dateStr = date.toISOString().split('T')[0];
 			
+			// Try different endpoint formats - the menu endpoint format may vary
+			// Format 1: /strava/?akcia=stravamenu (similar to timeline pattern)
+			let menuUrl = `${this.edupageClient.baseUrl}/strava/?akcia=stravamenu`;
+			
 			// Use the API method to fetch menu data
 			// Note: Menu endpoint might not be available for all schools
-			const menuData = await this.edupageClient.api({
-				url: 'stravamenu',
-				data: {
-					datefrom: dateStr,
-					dateto: dateStr
-				},
-				autoLogin: false // Prevent auto-login retry loops
-			});
+			let menuData;
+			try {
+				menuData = await this.edupageClient.api({
+					url: menuUrl,
+					data: {
+						datefrom: dateStr,
+						dateto: dateStr,
+					},
+					autoLogin: false, // Prevent auto-login retry loops
+				});
+			} catch (firstError) {
+				// Try alternative format: /strava/stravamenu
+				this.log.debug(`Trying alternative menu endpoint format for ${dateStr}`);
+				menuUrl = `${this.edupageClient.baseUrl}/strava/stravamenu`;
+				try {
+					menuData = await this.edupageClient.api({
+						url: menuUrl,
+						data: {
+							datefrom: dateStr,
+							dateto: dateStr,
+						},
+						autoLogin: false,
+					});
+				} catch (secondError) {
+					// Both formats failed
+					throw firstError;
+				}
+			}
 
 			// Check if we got valid menu data
-			if (menuData && (menuData.menu || menuData.dishes || menuData.items)) {
+			if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result)) {
 				return menuData;
 			}
 			
