@@ -14,10 +14,12 @@
   "homepage": "https://github.com/dwilke99/ioBroker.edupage",
   "license": "MIT",
   "keywords": [
-    "template",
-    "automation",
-    "IoT",
-    "integration"
+    "iobroker",
+    "edupage",
+    "school",
+    "homework",
+    "timetable",
+    "canteen"
   ],
   "repository": {
     "type": "git",

@@ -28,6 +28,8 @@ class Edupage extends utils.Adapter {
 		this.on('unload', this.onUnload.bind(this));
 		this.edupageClient = null;
 		this.pollInterval = null;
+		this.studentId = null; // Store student ID if studentName is configured
+		this.targetStudent = null; // Store target student object if studentName is configured
 	}
 
 	/**
@@ -62,9 +64,50 @@ class Edupage extends utils.Adapter {
 			await this.edupageClient.login(username, password);
 			this.log.info('Successfully logged in to Edupage');
 
-			// Log student filtering info if configured
+			// Get and log all available students (children for parent accounts)
+			const availableStudents = this.edupageClient.students || [];
+			this.log.info(`Found ${availableStudents.length} student(s) in account:`);
+			availableStudents.forEach(student => {
+				const fullName = student.name || 
+					(student.firstname && student.lastname ? `${student.firstname} ${student.lastname}` : 
+					(student.firstName && student.lastName ? `${student.firstName} ${student.lastName}` : 'Unknown'));
+				this.log.info(`  Gefundenes Kind: ${fullName}`);
+			});
+
+			// Look up target student if studentName is configured
 			if (studentName) {
-				this.log.info(`Student name filter configured: ${studentName}. Using main account data (API doesn't support direct filtering).`);
+				// Search for exact match first, then partial match
+				const foundStudent = availableStudents.find(student => {
+					const fullName = student.name || 
+						(student.firstname && student.lastname ? `${student.firstname} ${student.lastname}` : 
+						(student.firstName && student.lastName ? `${student.firstName} ${student.lastName}` : ''));
+					// Try exact match first
+					return fullName === studentName || fullName.toLowerCase() === studentName.toLowerCase();
+				}) || availableStudents.find(student => {
+					const fullName = student.name || 
+						(student.firstname && student.lastname ? `${student.firstname} ${student.lastname}` : 
+						(student.firstName && student.lastName ? `${student.firstName} ${student.lastName}` : ''));
+					// Fallback to partial match
+					return fullName.toLowerCase().includes(studentName.toLowerCase()) ||
+						studentName.toLowerCase().includes(fullName.toLowerCase());
+				});
+
+				if (foundStudent) {
+					this.targetStudent = foundStudent;
+					this.studentId = foundStudent.id;
+					const fullName = foundStudent.name || 
+						(foundStudent.firstname && foundStudent.lastname ? `${foundStudent.firstname} ${foundStudent.lastname}` : 
+						(foundStudent.firstName && foundStudent.lastName ? `${foundStudent.firstName} ${foundStudent.lastName}` : 'Unknown'));
+					this.log.info(`Selected student: ${fullName} (ID: ${this.studentId})`);
+				} else {
+					this.log.warn(`Student "${studentName}" not found in students list. Available students logged above. Using main account data.`);
+					this.targetStudent = null;
+					this.studentId = null;
+				}
+			} else {
+				this.targetStudent = null;
+				this.studentId = null;
+				this.log.info('No student name configured. Using main account data.');
 			}
 
 			// Set connection status
@@ -109,6 +152,34 @@ class Edupage extends utils.Adapter {
 		
 		nextDay.setHours(0, 0, 0, 0);
 		return nextDay;
+	}
+
+	/**
+	 * Get all weekdays (Monday to Friday) for the current week
+	 * @returns {Date[]} Array of Date objects for Monday through Friday
+	 */
+	getCurrentWeekDays() {
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		
+		// Get Monday of current week
+		const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+		const monday = new Date(today);
+		
+		// Calculate days to subtract to get to Monday
+		// If today is Sunday (0), go back 6 days; if Monday (1), go back 0 days, etc.
+		const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+		monday.setDate(today.getDate() - daysToMonday);
+		
+		// Generate array of Monday through Friday
+		const weekDays = [];
+		for (let i = 0; i < 5; i++) {
+			const day = new Date(monday);
+			day.setDate(monday.getDate() + i);
+			weekDays.push(day);
+		}
+		
+		return weekDays;
 	}
 
 	/**
@@ -297,8 +368,36 @@ class Edupage extends utils.Adapter {
 			}
 
 			// Access homeworks and timeline (notifications) as properties
-			const homeworks = this.edupageClient.homeworks || [];
-			const timeline = this.edupageClient.timeline || [];
+			let homeworks = this.edupageClient.homeworks || [];
+			let timeline = this.edupageClient.timeline || [];
+
+			// Filter by target student if configured
+			if (this.targetStudent && this.studentId) {
+				// Filter homeworks by student
+				homeworks = homeworks.filter(hw => {
+					// Check if homework is assigned to our target student
+					// Homeworks might have student IDs in the data structure
+					if (hw.students && Array.isArray(hw.students)) {
+						return hw.students.some(s => s.id === this.studentId);
+					}
+					// If no students array, include it (might be class-wide)
+					return true;
+				});
+
+				// Filter timeline/notifications by student
+				timeline = timeline.filter(msg => {
+					// Check if message is for our target student
+					if (msg.students && Array.isArray(msg.students)) {
+						return msg.students.some(s => s.id === this.studentId);
+					}
+					// Check if message author is our target student
+					if (msg.author && msg.author.id === this.studentId) {
+						return true;
+					}
+					// If no student filter, include it (might be general)
+					return true;
+				});
+			}
 
 			// Convert objects to plain JSON for storage
 			const homeworksData = homeworks.map(hw => {
@@ -338,13 +437,22 @@ class Edupage extends utils.Adapter {
 				return msgDate.getTime() === today.getTime();
 			});
 
-			// Extract student name from user object
-			let studentName = '';
-			if (this.edupageClient.user) {
-				studentName = this.edupageClient.user.name || 
+			// Extract student name - use target student if configured, otherwise use logged-in user
+			let extractedStudentName = '';
+			if (this.targetStudent) {
+				extractedStudentName = this.targetStudent.name || 
+					(this.targetStudent.firstname && this.targetStudent.lastname 
+						? `${this.targetStudent.firstname} ${this.targetStudent.lastname}` 
+						: (this.targetStudent.firstName && this.targetStudent.lastName 
+							? `${this.targetStudent.firstName} ${this.targetStudent.lastName}` 
+							: '')) || '';
+			} else if (this.edupageClient.user) {
+				extractedStudentName = this.edupageClient.user.name || 
 					(this.edupageClient.user.firstName && this.edupageClient.user.lastName 
 						? `${this.edupageClient.user.firstName} ${this.edupageClient.user.lastName}` 
-						: '') || '';
+						: (this.edupageClient.user.firstname && this.edupageClient.user.lastname
+							? `${this.edupageClient.user.firstname} ${this.edupageClient.user.lastname}`
+							: '')) || '';
 			}
 
 			// Extract unique teachers from homeworks, notifications, and timetable
@@ -432,25 +540,38 @@ class Edupage extends utils.Adapter {
 			// Process timetable lessons for today
 			let todayLessons = [];
 			if (todayTimetable && todayTimetable.lessons) {
-				todayLessons = todayTimetable.lessons.map(lesson => {
+				// Filter lessons by student ID if configured
+				let lessonsToProcess = todayTimetable.lessons;
+				if (this.studentId) {
+					lessonsToProcess = todayTimetable.lessons.filter(lesson => {
+						// Check if this lesson includes our student
+						if (lesson.students && Array.isArray(lesson.students)) {
+							return lesson.students.some(student => student.id === this.studentId);
+						}
+						// If no students array, include the lesson (might be class-wide)
+						return true;
+					});
+				}
+
+				todayLessons = lessonsToProcess.map(lesson => {
 					const teacherNames = lesson.teachers && lesson.teachers.length > 0
 						? lesson.teachers.map(t => t.name || t.toString()).join(', ')
 						: null;
 					
+					// Extract period number (e.g., "1", "2", etc.) - use name or id
+					const periodNumber = lesson.period ? (lesson.period.name || String(lesson.period.id) || null) : null;
+					
 					return {
-						period: lesson.period ? {
-							id: lesson.period.id,
-							name: lesson.period.name || null,
-							startTime: lesson.period.startTime || null,
-							endTime: lesson.period.endTime || null
-						} : null,
+						period: periodNumber,
+						startTime: lesson.period && lesson.period.startTime ? lesson.period.startTime : null,
+						endTime: lesson.period && lesson.period.endTime ? lesson.period.endTime : null,
 						subject: lesson.subject ? lesson.subject.name : null,
 						teacher: teacherNames,
 						topic: lesson.curriculum || null,
 						classroom: lesson.classrooms && lesson.classrooms.length > 0
 							? lesson.classrooms.map(c => c.name || c.toString()).join(', ')
 							: null,
-						date: lesson.date ? lesson.date.toISOString() : null
+						date: lesson.date ? lesson.date.toISOString().split('T')[0] : null
 					};
 				});
 			}
@@ -458,32 +579,43 @@ class Edupage extends utils.Adapter {
 			// Process timetable lessons for next school day
 			let nextSchoolDayLessons = [];
 			if (nextSchoolDayTimetable && nextSchoolDayTimetable.lessons) {
-				nextSchoolDayLessons = nextSchoolDayTimetable.lessons.map(lesson => {
+				// Filter lessons by student ID if configured
+				let lessonsToProcess = nextSchoolDayTimetable.lessons;
+				if (this.studentId) {
+					lessonsToProcess = nextSchoolDayTimetable.lessons.filter(lesson => {
+						// Check if this lesson includes our student
+						if (lesson.students && Array.isArray(lesson.students)) {
+							return lesson.students.some(student => student.id === this.studentId);
+						}
+						// If no students array, include the lesson (might be class-wide)
+						return true;
+					});
+				}
+
+				nextSchoolDayLessons = lessonsToProcess.map(lesson => {
 					const teacherNames = lesson.teachers && lesson.teachers.length > 0
 						? lesson.teachers.map(t => t.name || t.toString()).join(', ')
 						: null;
 					
+					// Extract period number (e.g., "1", "2", etc.) - use name or id
+					const periodNumber = lesson.period ? (lesson.period.name || String(lesson.period.id) || null) : null;
+					
 					return {
-						period: lesson.period ? {
-							id: lesson.period.id,
-							name: lesson.period.name || null,
-							startTime: lesson.period.startTime || null,
-							endTime: lesson.period.endTime || null
-						} : null,
+						period: periodNumber,
+						startTime: lesson.period && lesson.period.startTime ? lesson.period.startTime : null,
+						endTime: lesson.period && lesson.period.endTime ? lesson.period.endTime : null,
 						subject: lesson.subject ? lesson.subject.name : null,
 						teacher: teacherNames,
 						topic: lesson.curriculum || null,
 						classroom: lesson.classrooms && lesson.classrooms.length > 0
 							? lesson.classrooms.map(c => c.name || c.toString()).join(', ')
 							: null,
-						date: lesson.date ? lesson.date.toISOString() : null
+						date: lesson.date ? lesson.date.toISOString().split('T')[0] : null
 					};
 				});
 			}
 
 			// Save general info
-			const configStudentName = this.config.studentName || '';
-			const extractedStudentName = studentName || configStudentName;
 			await this.setState('info.student_name', { val: extractedStudentName, ack: true });
 			await this.setState('info.teachers_json', { val: JSON.stringify(teachersList), ack: true });
 			await this.setState('info.classes_json', { val: JSON.stringify(classesList), ack: true });
@@ -500,6 +632,55 @@ class Edupage extends utils.Adapter {
 			await this.setState('data.canteen.today_json', { val: todayMenuJson, ack: true });
 			await this.setState('data.canteen.tomorrow_json', { val: nextSchoolDayMenuJson, ack: true });
 			await this.setState('data.canteen.tomorrow_text', { val: nextSchoolDayMainDish, ack: true });
+
+			// Fetch weekly menu (Monday to Friday)
+			const weekDays = this.getCurrentWeekDays();
+			const weekMenuData = [];
+			const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+			for (let i = 0; i < weekDays.length; i++) {
+				const day = weekDays[i];
+				const dateStr = day.toISOString().split('T')[0];
+				
+				try {
+					const menuData = await this.fetchMenu(day);
+					
+					if (menuData) {
+						// Extract main dish from menu data
+						const mainDish = this.extractMainDish(menuData);
+						
+						weekMenuData.push({
+							date: dateStr,
+							day: dayNames[i],
+							menu: mainDish || '',
+							menuData: menuData // Include full menu data for reference
+						});
+					} else {
+						// Add entry even if menu is not available
+						weekMenuData.push({
+							date: dateStr,
+							day: dayNames[i],
+							menu: '',
+							menuData: null
+						});
+					}
+				} catch (error) {
+					this.log.debug(`Failed to fetch menu for ${dateStr}: ${error.message}`);
+					// Add entry with empty menu
+					weekMenuData.push({
+						date: dateStr,
+						day: dayNames[i],
+						menu: '',
+						menuData: null
+					});
+				}
+			}
+
+			// Sort by date (should already be sorted, but ensure it)
+			weekMenuData.sort((a, b) => a.date.localeCompare(b.date));
+
+			// Save weekly menu data
+			await this.setState('data.canteen.week_json', { val: JSON.stringify(weekMenuData), ack: true });
 
 			this.log.debug(`Synced ${homeworks.length} homeworks (${pendingHomeworks.length} pending, ${completedHomeworks.length} completed), ${timeline.length} notifications (${todayNotifications.length} today), ${todayLessons.length} lessons today, ${nextSchoolDayLessons.length} lessons next school day`);
 

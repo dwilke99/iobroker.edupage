@@ -4,17 +4,17 @@
 		"version": "0.0.1",
 		"news": {
 			"0.0.1": {
-				"en": "initial release",
-				"de": "Erstveröffentlichung",
-				"ru": "Начальная версия",
-				"pt": "lançamento inicial",
-				"nl": "Eerste uitgave",
-				"fr": "Première version",
-				"it": "Versione iniziale",
-				"es": "Versión inicial",
-				"pl": "Pierwsze wydanie",
-				"uk": "Початкова версія",
-				"zh-cn": "首次出版"
+				"en": "Initial release with homework, timetable, and canteen support",
+				"de": "Erstveröffentlichung mit Hausaufgaben, Stundenplan und Mensa-Support",
+				"ru": "Начальная версия с поддержкой домашних заданий, расписания и столовой",
+				"pt": "Lançamento inicial com suporte para lições de casa, horário e cantina",
+				"nl": "Eerste uitgave met ondersteuning voor huiswerk, rooster en kantine",
+				"fr": "Première version avec support des devoirs, emploi du temps et cantine",
+				"it": "Versione iniziale con supporto per compiti, orario e mensa",
+				"es": "Versión inicial con soporte para tareas, horario y comedor",
+				"pl": "Pierwsze wydanie z obsługą zadań domowych, planu lekcji i stołówki",
+				"uk": "Початкова версія з підтримкою домашніх завдань, розкладу та їдальні",
+				"zh-cn": "初始版本，支持作业、时间表和食堂"
 			}
 		},
 		"titleLang": {
@@ -338,6 +338,18 @@
 				"name": "Next School Day Main Dish",
 				"type": "string",
 				"role": "text",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "data.canteen.week_json",
+			"type": "state",
+			"common": {
+				"name": "Menu for the whole week",
+				"type": "string",
+				"role": "json",
 				"read": true,
 				"write": false
 			},

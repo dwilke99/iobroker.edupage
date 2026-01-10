@@ -10,111 +10,170 @@
 
 **Tests:** ![Test and Release](https://github.com/dwilke99/ioBroker.edupage/workflows/Test%20and%20Release/badge.svg)
 
-## edupage adapter for ioBroker
+## ioBroker.edupage
 
-Hole Hausaufgaben und Mitteilungen von Edupage
+Adapter für die Integration von Edupage (Hausaufgaben, Stundenplan, Mensa).
 
-## Developer manual
-This section is intended for the developer. It can be deleted later.
+Dieser Adapter ermöglicht es, Daten von Edupage in ioBroker zu integrieren. Er holt automatisch Hausaufgaben, Mitteilungen, Stundenpläne und Mensa-Menüs und stellt diese als JSON-Datenpunkte zur Verfügung.
 
-### DISCLAIMER
+## Installation
 
-Please make sure that you consider copyrights and trademarks when you use names or logos of a company and add a disclaimer to your README.
-You can check other adapters for examples or ask in the developer community. Using a name or logo of a company without permission may cause legal problems for you.
+### Installation über GitHub (Experten-Modus)
 
-### Getting started
+1. Öffnen Sie die ioBroker Admin-Oberfläche
+2. Navigieren Sie zu **Adapter**
+3. Klicken Sie auf das **Katze**-Symbol (Experten-Modus)
+4. Wählen Sie **Beliebig** aus
+5. Geben Sie die GitHub-URL ein: `https://github.com/dwilke99/ioBroker.edupage`
+6. Klicken Sie auf **Installieren**
 
-You are almost done, only a few steps left:
-1. Create a new repository on GitHub with the name `ioBroker.edupage`
-1. Initialize the current folder as a new git repository:  
-	```bash
-	git init -b main
-	git add .
-	git commit -m "Initial commit"
-	```
-1. Link your local repository with the one on GitHub:  
-	```bash
-	git remote add origin https://github.com/dwilke99/ioBroker.edupage
-	```
+### Wichtiger Hinweis zu Abhängigkeiten
 
-1. Push all files to the GitHub repo:  
-	```bash
-	git push origin main
-	```
-1. Add a new secret under https://github.com/dwilke99/ioBroker.edupage/settings/secrets. It must be named `AUTO_MERGE_TOKEN` and contain a personal access token with push access to the repository, e.g. yours. You can create a new token under https://github.com/settings/tokens.
+Falls die Installation der Abhängigkeiten fehlschlägt, führen Sie bitte manuell folgenden Befehl aus:
 
-1. Head over to [main.js](main.js) and start programming!
-
-### Best Practices
-We've collected some [best practices](https://github.com/ioBroker/ioBroker.repositories#development-and-coding-best-practices) regarding ioBroker development and coding in general. If you're new to ioBroker or Node.js, you should
-check them out. If you're already experienced, you should also take a look at them - you might learn something new :)
-
-### State Roles
-When creating state objects, it is important to use the correct role for the state. The role defines how the state should be interpreted by visualizations and other adapters. For a list of available roles and their meanings, please refer to the [state roles documentation](https://www.iobroker.net/#en/documentation/dev/stateroles.md).
-
-**Important:** Do not invent your own custom role names. If you need a role that is not part of the official list, please contact the ioBroker developer community for guidance and discussion about adding new roles.
-
-### Scripts in `package.json`
-Several npm scripts are predefined for your convenience. You can run them using `npm run <scriptname>`
-| Script name | Description |
-|-------------|-------------|
-| `test:js` | Executes the tests you defined in `*.test.js` files. |
-| `test:package` | Ensures your `package.json` and `io-package.json` are valid. |
-| `test:integration` | Tests the adapter startup with an actual instance of ioBroker. |
-| `test` | Performs a minimal test run on package files and your tests. |
-| `check` | Performs a type-check on your code (without compiling anything). |
-| `lint` | Runs `ESLint` to check your code for formatting errors and potential bugs. |
-| `translate` | Translates texts in your adapter to all required languages, see [`@iobroker/adapter-dev`](https://github.com/ioBroker/adapter-dev#manage-translations) for more details. |
-| `release` | Creates a new release, see [`@alcalzone/release-script`](https://github.com/AlCalzone/release-script#usage) for more details. |
-
-### Writing tests
-When done right, testing code is invaluable, because it gives you the 
-confidence to change your code while knowing exactly if and when 
-something breaks. A good read on the topic of test-driven development 
-is https://hackernoon.com/introduction-to-test-driven-development-tdd-61a13bc92d92. 
-Although writing tests before the code might seem strange at first, but it has very 
-clear upsides.
-
-The template provides you with basic tests for the adapter startup and package files.
-It is recommended that you add your own tests into the mix.
-
-### Publishing the adapter
-Using GitHub Actions, you can enable automatic releases on npm whenever you push a new git tag that matches the form 
-`v<major>.<minor>.<patch>`. We **strongly recommend** that you do. The necessary steps are described in `.github/workflows/test-and-release.yml`.
-
-Since you installed the release script, you can create a new
-release simply by calling:
 ```bash
-npm run release
-```
-Additional command line options for the release script are explained in the
-[release-script documentation](https://github.com/AlCalzone/release-script#command-line).
-
-To get your adapter released in ioBroker, please refer to the documentation 
-of [ioBroker.repositories](https://github.com/ioBroker/ioBroker.repositories#requirements-for-adapter-to-get-added-to-the-latest-repository).
-
-### Test the adapter manually with dev-server
-Since you set up `dev-server`, you can use it to run, test and debug your adapter.
-
-You may start `dev-server` by calling from your dev directory:
-```bash
-dev-server watch
+cd /opt/iobroker/node_modules/iobroker.edupage
+npm install edupage-api
 ```
 
-The ioBroker.admin interface will then be available at http://localhost:undefined/
+Starten Sie anschließend den Adapter neu.
 
-Please refer to the [`dev-server` documentation](https://github.com/ioBroker/dev-server#command-line) for more details.
+## Konfiguration
+
+Nach der Installation können Sie den Adapter in den ioBroker-Einstellungen konfigurieren:
+
+### Erforderliche Einstellungen
+
+- **School Subdomain**: Die Subdomain Ihrer Schule (z.B. `gtheissen` für `gtheissen.edupage.org`)
+- **Username**: Ihr Edupage-Benutzername
+- **Password**: Ihr Edupage-Passwort
+- **Polling Interval**: Abfrageintervall in Minuten (Standard: 30 Minuten)
+
+### Optionale Einstellungen
+
+- **Student Name**: Name des Kindes (Exakt wie in Edupage)
+  - Leer lassen, um alle zu laden
+  - Bei Fehlern siehe Protokoll für verfügbare Namen
+  - Wichtig für Eltern-Accounts mit mehreren Kindern
+
+## Funktionen und Datenpunkte
+
+### Hausaufgaben (`data.homework`)
+
+- **`data.homework.pending_json`**: Liste aller offenen Hausaufgaben (JSON)
+- **`data.homework.completed_json`**: Liste aller erledigten Hausaufgaben (JSON)
+- **`data.homework_count`**: Gesamtanzahl der Hausaufgaben (Zahl)
+
+Jede Hausaufgabe enthält:
+- `id`: Eindeutige ID
+- `subject`: Fach
+- `title`: Titel
+- `description`: Beschreibung
+- `dueDate`: Abgabedatum
+- `assignedDate`: Zuweisungsdatum
+- `isDone`: Status (true/false)
+- `teacher`: Lehrer/in
+
+### Stundenplan (`data.classes`)
+
+- **`data.classes.today_json`**: Stundenplan für heute (JSON)
+- **`data.classes.tomorrow_json`**: Stundenplan für den nächsten Schultag (JSON)
+
+Jede Unterrichtsstunde enthält:
+- `period`: Stundennummer (z.B. "1", "2")
+- `startTime`: Startzeit (z.B. "08:00")
+- `endTime`: Endzeit (z.B. "08:45")
+- `subject`: Fach
+- `teacher`: Lehrer/in
+- `topic`: Unterrichtsthema / Was wurde gemacht
+- `classroom`: Raum
+- `date`: Datum (YYYY-MM-DD)
+
+### Mensa (`data.canteen`)
+
+- **`data.canteen.today_json`**: Menü für heute (JSON)
+- **`data.canteen.tomorrow_json`**: Menü für den nächsten Schultag (JSON)
+- **`data.canteen.tomorrow_text`**: Hauptgericht für den nächsten Schultag (Text)
+- **`data.canteen.week_json`**: Menü für die gesamte Woche (Montag bis Freitag, JSON)
+
+Die Wochenübersicht enthält für jeden Tag:
+- `date`: Datum (YYYY-MM-DD)
+- `day`: Wochentag (Montag, Dienstag, etc.)
+- `menu`: Hauptgericht
+- `menuData`: Vollständige Menüdaten
+
+### Mitteilungen (`data.notifications`)
+
+- **`data.notifications.today_json`**: Mitteilungen von heute (JSON)
+- **`data.notifications.all_json`**: Alle Mitteilungen (JSON)
+- **`data.notifications_count`**: Anzahl der Mitteilungen (Zahl)
+
+### Informationen (`info`)
+
+- **`info.connection`**: Verbindungsstatus (true/false)
+- **`info.student_name`**: Name des Schülers/der Schülerin
+- **`info.teachers_json`**: Liste aller Lehrer (JSON)
+- **`info.classes_json`**: Liste aller Fächer/Klassen (JSON)
+
+## Visualisierung
+
+Der Adapter stellt alle Daten als JSON-Datenpunkte zur Verfügung, die ideal für die Verwendung mit HTML-Widgets in VIS (Visualisierung) geeignet sind.
+
+### Beispiel-Verwendung in VIS
+
+Sie können die JSON-Datenpunkte direkt in HTML-Widgets verwenden:
+
+```javascript
+// Beispiel: Hausaufgaben anzeigen
+let homeworks = JSON.parse(getState('edupage.0.data.homework.pending_json').val);
+homeworks.forEach(hw => {
+    console.log(`${hw.subject}: ${hw.title} - Fällig: ${hw.dueDate}`);
+});
+```
+
+```javascript
+// Beispiel: Stundenplan für heute
+let lessons = JSON.parse(getState('edupage.0.data.classes.today_json').val);
+lessons.forEach(lesson => {
+    console.log(`${lesson.startTime}-${lesson.endTime}: ${lesson.subject} - ${lesson.topic}`);
+});
+```
+
+```javascript
+// Beispiel: Mensa-Menü für die Woche
+let weekMenu = JSON.parse(getState('edupage.0.data.canteen.week_json').val);
+weekMenu.forEach(day => {
+    console.log(`${day.day} (${day.date}): ${day.menu}`);
+});
+```
+
+## Besonderheiten
+
+### Wochenend-Logik
+
+Der Adapter erkennt automatisch Wochenenden und zeigt für "morgen" die Daten des nächsten Schultags an:
+- Freitag → Montag
+- Samstag → Montag
+- Sonntag → Montag
+
+### Eltern-Accounts
+
+Bei Eltern-Accounts mit mehreren Kindern:
+1. Starten Sie den Adapter einmal ohne "Student Name"
+2. Prüfen Sie das Protokoll - alle verfügbaren Kinder werden geloggt
+3. Kopieren Sie den exakten Namen aus dem Protokoll
+4. Tragen Sie diesen in "Student Name" ein
+5. Starten Sie den Adapter neu
+
+Der Adapter filtert dann automatisch alle Daten für das ausgewählte Kind.
 
 ## Changelog
-<!--
-	Placeholder for the next version (at the beginning of the line):
-	### **WORK IN PROGRESS**
--->
 
-### **WORK IN PROGRESS**
-* (dupan99) initial release
+### 0.0.1 (2026-01-10)
+* (dupan99) Erstveröffentlichung mit Hausaufgaben, Stundenplan und Mensa-Support
 
-## License
+## Lizenz
+
 MIT License
 
 Copyright (c) 2026 dupan99 <dupan99@gmail.com>
