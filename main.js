@@ -198,63 +198,94 @@ class Edupage extends utils.Adapter {
 			
 			// Try different endpoint formats - the menu endpoint format may vary
 			let menuData = null;
+			let lastError = null;
 			
-			// Try Format 1: Server-side script pattern
+			// Try Format 1: Timeline-style endpoint (most common pattern)
 			try {
-				const menuUrl1 = `${this.edupageClient.baseUrl}/strava/server/stravamenu.js?__func=getMenu`;
+				const menuUrl1 = `${this.edupageClient.baseUrl}/strava/?akcia=stravamenu`;
 				menuData = await this.edupageClient.api({
 					url: menuUrl1,
 					data: {
 						datefrom: dateStr,
 						dateto: dateStr,
 					},
-					autoLogin: false,
+					autoLogin: true,
 				});
-				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData))) {
+				// Log response for debugging
+				this.log.debug(`Format 1 response for ${dateStr}: ${JSON.stringify(menuData)}`);
+				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData) || menuData.status === 'ok')) {
 					return menuData;
 				}
-			} catch {
-				// Try next format
+			} catch (error1) {
+				lastError = error1;
+				this.log.debug(`Format 1 error for ${dateStr}: ${error1.message}`);
 			}
 			
-			// Try Format 2: Timeline-style endpoint
+			// Try Format 2: Server-side script pattern
 			try {
-				const menuUrl2 = `${this.edupageClient.baseUrl}/strava/?akcia=stravamenu`;
+				const menuUrl2 = `${this.edupageClient.baseUrl}/strava/server/stravamenu.js?__func=getMenu`;
 				menuData = await this.edupageClient.api({
 					url: menuUrl2,
 					data: {
 						datefrom: dateStr,
 						dateto: dateStr,
 					},
-					autoLogin: false,
+					autoLogin: true,
 				});
-				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData))) {
+				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData) || menuData.status === 'ok')) {
 					return menuData;
 				}
-			} catch {
-				// Try next format
+			} catch (error2) {
+				lastError = error2;
 			}
 			
-			// Try Format 3: Direct endpoint
+			// Try Format 3: Direct endpoint with different parameter names
 			try {
-				const menuUrl3 = `${this.edupageClient.baseUrl}/strava/stravamenu`;
+				const menuUrl3 = `${this.edupageClient.baseUrl}/strava/?akcia=stravamenu`;
 				menuData = await this.edupageClient.api({
 					url: menuUrl3,
 					data: {
-						datefrom: dateStr,
-						dateto: dateStr,
+						date: dateStr,
 					},
-					autoLogin: false,
+					autoLogin: true,
 				});
-				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData))) {
+				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData) || menuData.status === 'ok')) {
 					return menuData;
 				}
-			} catch {
-				// All formats failed
+			} catch (error3) {
+				lastError = error3;
 			}
 			
-			// All formats failed or returned empty data
-			this.log.debug(`Meals not available for ${dateStr}`);
+			// Try Format 4: Without date parameters (get all)
+			try {
+				const menuUrl4 = `${this.edupageClient.baseUrl}/strava/?akcia=stravamenu`;
+				menuData = await this.edupageClient.api({
+					url: menuUrl4,
+					data: {},
+					autoLogin: true,
+				});
+				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData) || menuData.status === 'ok')) {
+					// Filter by date if we got all data
+					return menuData;
+				}
+			} catch (error4) {
+				lastError = error4;
+			}
+			
+			// Try Format 5: Check if menu data is already in _data (from refreshEdupage)
+			if (this.edupageClient._data && this.edupageClient._data.strava) {
+				const stravaData = this.edupageClient._data.strava;
+				if (stravaData.menu || stravaData.dishes || stravaData.items) {
+					return stravaData;
+				}
+			}
+			
+			// Log the last error for debugging
+			if (lastError) {
+				this.log.debug(`Meals fetch error for ${dateStr}: ${lastError.message}`);
+			} else {
+				this.log.debug(`Meals not available for ${dateStr} (no valid data in response)`);
+			}
 			return null;
 		} catch (error) {
 			this.log.debug(`Error fetching meals for ${date.toISOString().split('T')[0]}: ${error.message}`);
