@@ -185,7 +185,7 @@ class Edupage extends utils.Adapter {
 	/**
 	 * Fetch meals/menu for a specific date using the Edupage API
 	 * @param {Date} date - Date to fetch meals for
-	 * @returns {Promise<string|null>} Main dish text or null if error/not available
+	 * @returns {Promise<object|null>} Raw menu data from API or null if error/not available
 	 */
 	async getMeals(date) {
 		if (!this.edupageClient) {
@@ -198,7 +198,6 @@ class Edupage extends utils.Adapter {
 			
 			// Try different endpoint formats - the menu endpoint format may vary
 			let menuData = null;
-			let lastError = null;
 			
 			// Try Format 1: Server-side script pattern
 			try {
@@ -211,11 +210,11 @@ class Edupage extends utils.Adapter {
 					},
 					autoLogin: false,
 				});
-				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result)) {
-					return this.extractMealText(menuData);
+				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData))) {
+					return menuData;
 				}
-			} catch (error1) {
-				lastError = error1;
+			} catch {
+				// Try next format
 			}
 			
 			// Try Format 2: Timeline-style endpoint
@@ -229,11 +228,11 @@ class Edupage extends utils.Adapter {
 					},
 					autoLogin: false,
 				});
-				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result)) {
-					return this.extractMealText(menuData);
+				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData))) {
+					return menuData;
 				}
-			} catch (error2) {
-				lastError = error2;
+			} catch {
+				// Try next format
 			}
 			
 			// Try Format 3: Direct endpoint
@@ -247,10 +246,10 @@ class Edupage extends utils.Adapter {
 					},
 					autoLogin: false,
 				});
-				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result)) {
-					return this.extractMealText(menuData);
+				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData))) {
+					return menuData;
 				}
-			} catch (error3) {
+			} catch {
 				// All formats failed
 			}
 			
@@ -264,87 +263,194 @@ class Edupage extends utils.Adapter {
 	}
 
 	/**
-	 * Extract meal text from menu data response
-	 * @param {object} menuData - Menu data from API response
-	 * @returns {string|null} Main dish text or null
+	 * Parse all meal items from menu data and concatenate them
+	 * @param {object|Array} menuData - Menu data from API response
+	 * @returns {string} Concatenated meal text with newlines, or "Keine Daten" if empty
 	 */
-	extractMealText(menuData) {
+	parseMealItems(menuData) {
 		if (!menuData) {
-			return null;
+			return 'Keine Daten';
 		}
+
+		const mealParts = [];
 
 		// Handle different response structures
-		// Check if response is a list/array
+		// Check if response is a list/array directly
 		if (Array.isArray(menuData)) {
-			if (menuData.length > 0) {
-				const firstItem = menuData[0];
-				return firstItem.text || firstItem.description || firstItem.name || firstItem.title || null;
+			menuData.forEach(item => {
+				const text = item.text || item.description || item.name || item.title;
+				if (text) {
+					mealParts.push(text);
+				}
+			});
+		} else {
+			// Check if response contains a list/array in a property
+			let itemsArray = null;
+
+			if (menuData.dishes && Array.isArray(menuData.dishes)) {
+				itemsArray = menuData.dishes;
+			} else if (menuData.items && Array.isArray(menuData.items)) {
+				itemsArray = menuData.items;
+			} else if (menuData.data && Array.isArray(menuData.data)) {
+				itemsArray = menuData.data;
+			} else if (menuData.result && Array.isArray(menuData.result)) {
+				itemsArray = menuData.result;
 			}
-			return null;
-		}
 
-		// Check if response contains a list/array in a property
-		if (menuData.dishes && Array.isArray(menuData.dishes) && menuData.dishes.length > 0) {
-			const firstDish = menuData.dishes[0];
-			return firstDish.text || firstDish.description || firstDish.name || firstDish.title || null;
-		}
-
-		if (menuData.items && Array.isArray(menuData.items) && menuData.items.length > 0) {
-			const firstItem = menuData.items[0];
-			return firstItem.text || firstItem.description || firstItem.name || firstItem.title || null;
-		}
-
-		if (menuData.data && Array.isArray(menuData.data) && menuData.data.length > 0) {
-			const firstItem = menuData.data[0];
-			return firstItem.text || firstItem.description || firstItem.name || firstItem.title || null;
-		}
-
-		if (menuData.result && Array.isArray(menuData.result) && menuData.result.length > 0) {
-			const firstItem = menuData.result[0];
-			return firstItem.text || firstItem.description || firstItem.name || firstItem.title || null;
-		}
-
-		// Check for menu object structure
-		if (menuData.menu) {
-			const menu = menuData.menu;
-			
-			// Check for Menu A
-			if (menu.menuA && menu.menuA.name) {
-				return menu.menuA.name;
+			if (itemsArray) {
+				itemsArray.forEach(item => {
+					const text = item.text || item.description || item.name || item.title;
+					if (text) {
+						mealParts.push(text);
+					}
+				});
 			}
-			
-			// Check for dishes array in menu
-			if (menu.dishes && Array.isArray(menu.dishes) && menu.dishes.length > 0) {
-				const firstDish = menu.dishes[0];
-				return firstDish.text || firstDish.description || firstDish.name || firstDish.title || null;
+
+			// Check for menu object structure
+			if (menuData.menu) {
+				const menu = menuData.menu;
+				
+				// Check for Menu A
+				if (menu.menuA && menu.menuA.name) {
+					mealParts.push(menu.menuA.name);
+				}
+				
+				// Check for dishes array in menu
+				if (menu.dishes && Array.isArray(menu.dishes)) {
+					menu.dishes.forEach(dish => {
+						const text = dish.text || dish.description || dish.name || dish.title;
+						if (text) {
+							mealParts.push(text);
+						}
+					});
+				}
+				
+				// Check for items array in menu
+				if (menu.items && Array.isArray(menu.items)) {
+					menu.items.forEach(item => {
+						const text = item.text || item.description || item.name || item.title;
+						if (text) {
+							mealParts.push(text);
+						}
+					});
+				}
+				
+				// Fallback: menu name
+				if (menu.name && mealParts.length === 0) {
+					mealParts.push(menu.name);
+				}
 			}
-			
-			// Check for items array in menu
-			if (menu.items && Array.isArray(menu.items) && menu.items.length > 0) {
-				const firstItem = menu.items[0];
-				return firstItem.text || firstItem.description || firstItem.name || firstItem.title || null;
-			}
-			
-			// Fallback: menu name
-			if (menu.name) {
-				return menu.name;
+
+			// Direct text/description/name fields (if no array found)
+			if (mealParts.length === 0) {
+				if (menuData.text) {
+					mealParts.push(menuData.text);
+				} else if (menuData.description) {
+					mealParts.push(menuData.description);
+				} else if (menuData.name) {
+					mealParts.push(menuData.name);
+				}
 			}
 		}
 
-		// Direct text/description/name fields
-		if (menuData.text) {
-			return menuData.text;
-		}
-		if (menuData.description) {
-			return menuData.description;
-		}
-		if (menuData.name) {
-			return menuData.name;
-		}
-
-		return null;
+		// Return concatenated meals with newlines, or "Keine Daten" if empty
+		return mealParts.length > 0 ? mealParts.join('\n') : 'Keine Daten';
 	}
 
+
+	/**
+	 * Sync canteen/menu data for the week
+	 * @param {Date} today - Today's date
+	 * @param {Date} nextSchoolDay - Next school day date
+	 */
+	async syncCanteenData(today, nextSchoolDay) {
+		try {
+			// Get week dates (Monday to Friday)
+			const weekDays = this.getCurrentWeekDays();
+			const weekMenuData = [];
+			const dayNames = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag'];
+
+			// Loop through each day of the week
+			for (let i = 0; i < weekDays.length; i++) {
+				const day = weekDays[i];
+				const dateStr = day.toISOString().split('T')[0];
+				
+				try {
+					// Fetch raw meals data from API
+					const rawMealsData = await this.getMeals(day);
+					
+					// CRITICAL: Log raw API response for debugging
+					this.log.warn(`RAW MEALS for ${dateStr}: ${JSON.stringify(rawMealsData)}`);
+					
+					// Parse all meal items and concatenate them
+					const menuText = this.parseMealItems(rawMealsData);
+					
+					weekMenuData.push({
+						date: dateStr,
+						dayName: dayNames[i],
+						menu: menuText
+					});
+				} catch (error) {
+					this.log.debug(`Failed to fetch meal for ${dateStr}: ${error.message}`);
+					// Add entry with "Keine Daten" if error
+					weekMenuData.push({
+						date: dateStr,
+						dayName: dayNames[i],
+						menu: 'Keine Daten'
+					});
+				}
+			}
+
+			// Sort by date (should already be sorted, but ensure it)
+			weekMenuData.sort((a, b) => a.date.localeCompare(b.date));
+
+			// Save weekly menu data
+			await this.setState('data.canteen.week_json', { val: JSON.stringify(weekMenuData), ack: true });
+			this.log.debug(`Fetched meals for ${weekMenuData.length} days`);
+
+			// Find today's entry and save to data.canteen.today_json
+			const todayStr = today.toISOString().split('T')[0];
+			const todayEntry = weekMenuData.find(entry => entry.date === todayStr);
+			if (todayEntry) {
+				await this.setState('data.canteen.today_json', { val: JSON.stringify(todayEntry), ack: true });
+			} else {
+				// Fallback: create entry for today
+				const todayDayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1; // Sunday = 6, Monday = 0, etc.
+				const todayDayName = todayDayIndex >= 0 && todayDayIndex < dayNames.length
+					? dayNames[todayDayIndex]
+					: 'Unbekannt';
+				await this.setState('data.canteen.today_json', {
+					val: JSON.stringify({ date: todayStr, dayName: todayDayName, menu: 'Keine Daten' }),
+					ack: true
+				});
+			}
+
+			// Find next school day's entry and save to data.canteen.tomorrow_json
+			const nextSchoolDayStr = nextSchoolDay.toISOString().split('T')[0];
+			const nextSchoolDayEntry = weekMenuData.find(entry => entry.date === nextSchoolDayStr);
+			if (nextSchoolDayEntry) {
+				await this.setState('data.canteen.tomorrow_json', {
+					val: JSON.stringify(nextSchoolDayEntry),
+					ack: true
+				});
+				// Extract just the menu text for tomorrow_text
+				await this.setState('data.canteen.tomorrow_text', { val: nextSchoolDayEntry.menu, ack: true });
+			} else {
+				// Fallback: create entry for next school day
+				const nextDayIndex = nextSchoolDay.getDay() === 0 ? 6 : nextSchoolDay.getDay() - 1;
+				const nextDayName = nextDayIndex >= 0 && nextDayIndex < dayNames.length
+					? dayNames[nextDayIndex]
+					: 'Unbekannt';
+				await this.setState('data.canteen.tomorrow_json', {
+					val: JSON.stringify({ date: nextSchoolDayStr, dayName: nextDayName, menu: 'Keine Daten' }),
+					ack: true
+				});
+				await this.setState('data.canteen.tomorrow_text', { val: 'Keine Daten', ack: true });
+			}
+		} catch (error) {
+			this.log.error(`Error syncing canteen data: ${error.message}`);
+		}
+	}
 
 	/**
 	 * Sync data from Edupage API
@@ -612,71 +718,8 @@ class Edupage extends utils.Adapter {
 			await this.setState('data.classes.today_json', { val: JSON.stringify(todayLessons), ack: true });
 			await this.setState('data.classes.tomorrow_json', { val: JSON.stringify(nextSchoolDayLessons), ack: true });
 
-			// Fetch meals for today and next school day using getMeals()
-			let todayMeal = null;
-			let nextSchoolDayMeal = null;
-
-			try {
-				todayMeal = await this.getMeals(today);
-			} catch (error) {
-				this.log.debug(`Failed to fetch today's meal: ${error.message}`);
-			}
-
-			try {
-				nextSchoolDayMeal = await this.getMeals(nextSchoolDay);
-			} catch (error) {
-				this.log.debug(`Failed to fetch next school day's meal: ${error.message}`);
-			}
-
-			// Save today's meal
-			const todayMealJson = JSON.stringify({
-				date: today.toISOString().split('T')[0],
-				menu: todayMeal || 'Keine Daten'
-			});
-			await this.setState('data.canteen.today_json', { val: todayMealJson, ack: true });
-
-			// Save next school day's meal
-			const nextSchoolDayMealJson = JSON.stringify({
-				date: nextSchoolDay.toISOString().split('T')[0],
-				menu: nextSchoolDayMeal || 'Keine Daten'
-			});
-			await this.setState('data.canteen.tomorrow_json', { val: nextSchoolDayMealJson, ack: true });
-			await this.setState('data.canteen.tomorrow_text', { val: nextSchoolDayMeal || 'Keine Daten', ack: true });
-
-			// Fetch weekly menu (Monday to Friday) using getMeals()
-			const weekDays = this.getCurrentWeekDays();
-			const weekMenuData = [];
-			const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-
-			for (let i = 0; i < weekDays.length; i++) {
-				const day = weekDays[i];
-				const dateStr = day.toISOString().split('T')[0];
-				
-				try {
-					const mealText = await this.getMeals(day);
-					
-					weekMenuData.push({
-						date: dateStr,
-						day: dayNames[i],
-						menu: mealText || 'Keine Daten'
-					});
-				} catch (error) {
-					this.log.debug(`Failed to fetch meal for ${dateStr}: ${error.message}`);
-					// Add entry with "Keine Daten" if error
-					weekMenuData.push({
-						date: dateStr,
-						day: dayNames[i],
-						menu: 'Keine Daten'
-					});
-				}
-			}
-
-			// Sort by date (should already be sorted, but ensure it)
-			weekMenuData.sort((a, b) => a.date.localeCompare(b.date));
-
-			// Save weekly menu data
-			await this.setState('data.canteen.week_json', { val: JSON.stringify(weekMenuData), ack: true });
-			this.log.debug(`Fetched meals for ${weekMenuData.length} days`);
+			// Sync canteen/menu data
+			await this.syncCanteenData(today, nextSchoolDay);
 
 			this.log.debug(`Synced ${homeworks.length} homeworks (${pendingHomeworks.length} pending, ${completedHomeworks.length} completed), ${timeline.length} notifications (${todayNotifications.length} today), ${todayLessons.length} lessons today, ${nextSchoolDayLessons.length} lessons next school day`);
 
