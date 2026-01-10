@@ -87,6 +87,103 @@ class Edupage extends utils.Adapter {
 	}
 
 	/**
+	 * Calculate the next school day from a given date
+	 * If date is Friday, Saturday, or Sunday -> returns Monday
+	 * Otherwise -> returns date + 1 day
+	 * @param {Date} date - Starting date
+	 * @returns {Date} Next school day
+	 */
+	getNextSchoolDay(date) {
+		const dayOfWeek = date.getDay(); // 0 = Sunday, 5 = Friday, 6 = Saturday
+		const nextDay = new Date(date);
+		
+		if (dayOfWeek === 5) { // Friday
+			nextDay.setDate(date.getDate() + 3); // Monday
+		} else if (dayOfWeek === 6) { // Saturday
+			nextDay.setDate(date.getDate() + 2); // Monday
+		} else if (dayOfWeek === 0) { // Sunday
+			nextDay.setDate(date.getDate() + 1); // Monday
+		} else {
+			nextDay.setDate(date.getDate() + 1); // Next day
+		}
+		
+		nextDay.setHours(0, 0, 0, 0);
+		return nextDay;
+	}
+
+	/**
+	 * Fetch canteen menu for a specific date
+	 * @param {Date} date - Date to fetch menu for
+	 * @returns {Promise<Object|null>} Menu data or null if error
+	 */
+	async fetchMenu(date) {
+		if (!this.edupageClient) {
+			return null;
+		}
+
+		try {
+			// Format date as YYYY-MM-DD
+			const dateStr = date.toISOString().split('T')[0];
+			
+			// Use the API method to fetch menu data
+			const menuData = await this.edupageClient.api({
+				url: 'stravamenu',
+				data: {
+					datefrom: dateStr,
+					dateto: dateStr
+				}
+			});
+
+			return menuData;
+		} catch (error) {
+			this.log.warn(`Failed to fetch menu for ${date.toISOString().split('T')[0]}: ${error.message}`);
+			return null;
+		}
+	}
+
+	/**
+	 * Extract main dish from menu data
+	 * @param {Object} menuData - Menu data from API
+	 * @returns {string} Main dish name or empty string
+	 */
+	extractMainDish(menuData) {
+		if (!menuData || !menuData.menu) {
+			return '';
+		}
+
+		// Try to find Menu A or the first main dish
+		const menu = menuData.menu;
+		
+		// Check for Menu A
+		if (menu.menuA && menu.menuA.name) {
+			return menu.menuA.name;
+		}
+		
+		// Check for dishes array
+		if (menu.dishes && Array.isArray(menu.dishes) && menu.dishes.length > 0) {
+			const firstDish = menu.dishes[0];
+			if (firstDish.name) {
+				return firstDish.name;
+			}
+		}
+		
+		// Check for items array
+		if (menu.items && Array.isArray(menu.items) && menu.items.length > 0) {
+			const firstItem = menu.items[0];
+			if (firstItem.name || firstItem.title) {
+				return firstItem.name || firstItem.title;
+			}
+		}
+
+		// Fallback: try to find any dish name in the structure
+		if (menu.name) {
+			return menu.name;
+		}
+
+		return '';
+	}
+
+	/**
 	 * Sync data from Edupage API
 	 */
 	async syncData() {
@@ -101,14 +198,13 @@ class Edupage extends utils.Adapter {
 			// Refresh timeline data to get latest homeworks and notifications
 			await this.edupageClient.refreshTimeline();
 
-			// Fetch timetable for today and tomorrow
+			// Calculate today and next school day
 			const today = new Date();
 			today.setHours(0, 0, 0, 0);
-			const tomorrow = new Date(today);
-			tomorrow.setDate(tomorrow.getDate() + 1);
+			const nextSchoolDay = this.getNextSchoolDay(today);
 
 			let todayTimetable = null;
-			let tomorrowTimetable = null;
+			let nextSchoolDayTimetable = null;
 
 			try {
 				todayTimetable = await this.edupageClient.getTimetableForDate(today);
@@ -117,9 +213,25 @@ class Edupage extends utils.Adapter {
 			}
 
 			try {
-				tomorrowTimetable = await this.edupageClient.getTimetableForDate(tomorrow);
+				nextSchoolDayTimetable = await this.edupageClient.getTimetableForDate(nextSchoolDay);
 			} catch (error) {
-				this.log.warn(`Failed to fetch tomorrow's timetable: ${error.message}`);
+				this.log.warn(`Failed to fetch next school day's timetable: ${error.message}`);
+			}
+
+			// Fetch canteen menu for today and next school day
+			let todayMenu = null;
+			let nextSchoolDayMenu = null;
+
+			try {
+				todayMenu = await this.fetchMenu(today);
+			} catch (error) {
+				this.log.warn(`Failed to fetch today's menu: ${error.message}`);
+			}
+
+			try {
+				nextSchoolDayMenu = await this.fetchMenu(nextSchoolDay);
+			} catch (error) {
+				this.log.warn(`Failed to fetch next school day's menu: ${error.message}`);
 			}
 
 			// Access homeworks and timeline (notifications) as properties
@@ -208,8 +320,8 @@ class Edupage extends utils.Adapter {
 				});
 			}
 
-			if (tomorrowTimetable && tomorrowTimetable.lessons) {
-				tomorrowTimetable.lessons.forEach(lesson => {
+			if (nextSchoolDayTimetable && nextSchoolDayTimetable.lessons) {
+				nextSchoolDayTimetable.lessons.forEach(lesson => {
 					if (lesson.teachers && lesson.teachers.length > 0 && lesson.subject) {
 						lesson.teachers.forEach(teacher => {
 							const teacherName = teacher.name || teacher.toString();
@@ -281,10 +393,10 @@ class Edupage extends utils.Adapter {
 				});
 			}
 
-			// Process timetable lessons for tomorrow
-			let tomorrowLessons = [];
-			if (tomorrowTimetable && tomorrowTimetable.lessons) {
-				tomorrowLessons = tomorrowTimetable.lessons.map(lesson => {
+			// Process timetable lessons for next school day
+			let nextSchoolDayLessons = [];
+			if (nextSchoolDayTimetable && nextSchoolDayTimetable.lessons) {
+				nextSchoolDayLessons = nextSchoolDayTimetable.lessons.map(lesson => {
 					const teacherNames = lesson.teachers && lesson.teachers.length > 0
 						? lesson.teachers.map(t => t.name || t.toString()).join(', ')
 						: null;
@@ -316,9 +428,18 @@ class Edupage extends utils.Adapter {
 
 			// Save timetable data
 			await this.setState('data.classes.today_json', { val: JSON.stringify(todayLessons), ack: true });
-			await this.setState('data.classes.tomorrow_json', { val: JSON.stringify(tomorrowLessons), ack: true });
+			await this.setState('data.classes.tomorrow_json', { val: JSON.stringify(nextSchoolDayLessons), ack: true });
 
-			this.log.debug(`Synced ${homeworks.length} homeworks (${pendingHomeworks.length} pending, ${completedHomeworks.length} completed), ${timeline.length} notifications (${todayNotifications.length} today), ${todayLessons.length} lessons today, ${tomorrowLessons.length} lessons tomorrow`);
+			// Process and save canteen menu data
+			const todayMenuJson = todayMenu ? JSON.stringify(todayMenu) : JSON.stringify({});
+			const nextSchoolDayMenuJson = nextSchoolDayMenu ? JSON.stringify(nextSchoolDayMenu) : JSON.stringify({});
+			const nextSchoolDayMainDish = nextSchoolDayMenu ? this.extractMainDish(nextSchoolDayMenu) : '';
+
+			await this.setState('data.canteen.today_json', { val: todayMenuJson, ack: true });
+			await this.setState('data.canteen.tomorrow_json', { val: nextSchoolDayMenuJson, ack: true });
+			await this.setState('data.canteen.tomorrow_text', { val: nextSchoolDayMainDish, ack: true });
+
+			this.log.debug(`Synced ${homeworks.length} homeworks (${pendingHomeworks.length} pending, ${completedHomeworks.length} completed), ${timeline.length} notifications (${todayNotifications.length} today), ${todayLessons.length} lessons today, ${nextSchoolDayLessons.length} lessons next school day`);
 
 			// Update connection status
 			await this.setState('info.connection', { val: true, ack: true });

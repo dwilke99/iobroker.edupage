@@ -298,6 +298,50 @@
 				"write": false
 			},
 			"native": {}
+		},
+		{
+			"_id": "data.canteen",
+			"type": "channel",
+			"common": {
+				"name": "Canteen"
+			},
+			"native": {}
+		},
+		{
+			"_id": "data.canteen.today_json",
+			"type": "state",
+			"common": {
+				"name": "Today's Menu (JSON)",
+				"type": "string",
+				"role": "json",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "data.canteen.tomorrow_json",
+			"type": "state",
+			"common": {
+				"name": "Next School Day Menu (JSON)",
+				"type": "string",
+				"role": "json",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
+			"_id": "data.canteen.tomorrow_text",
+			"type": "state",
+			"common": {
+				"name": "Next School Day Main Dish",
+				"type": "string",
+				"role": "text",
+				"read": true,
+				"write": false
+			},
+			"native": {}
 		}
 	]
 }
