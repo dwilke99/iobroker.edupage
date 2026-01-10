@@ -211,14 +211,14 @@ class Edupage extends utils.Adapter {
 					},
 					autoLogin: true,
 				});
-				// Log response for debugging
-				this.log.debug(`Format 1 response for ${dateStr}: ${JSON.stringify(menuData)}`);
+				// Log ALL responses at warn level for debugging
+				this.log.warn(`Format 1 response for ${dateStr}: ${JSON.stringify(menuData)}`);
 				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData) || menuData.status === 'ok')) {
 					return menuData;
 				}
 			} catch (error1) {
 				lastError = error1;
-				this.log.debug(`Format 1 error for ${dateStr}: ${error1.message}`);
+				this.log.warn(`Format 1 error for ${dateStr}: ${error1.message} - ${error1.stack || ''}`);
 			}
 			
 			// Try Format 2: Server-side script pattern
@@ -232,11 +232,13 @@ class Edupage extends utils.Adapter {
 					},
 					autoLogin: true,
 				});
+				this.log.warn(`Format 2 response for ${dateStr}: ${JSON.stringify(menuData)}`);
 				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData) || menuData.status === 'ok')) {
 					return menuData;
 				}
 			} catch (error2) {
 				lastError = error2;
+				this.log.warn(`Format 2 error for ${dateStr}: ${error2.message}`);
 			}
 			
 			// Try Format 3: Direct endpoint with different parameter names
@@ -249,11 +251,13 @@ class Edupage extends utils.Adapter {
 					},
 					autoLogin: true,
 				});
+				this.log.warn(`Format 3 response for ${dateStr}: ${JSON.stringify(menuData)}`);
 				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData) || menuData.status === 'ok')) {
 					return menuData;
 				}
 			} catch (error3) {
 				lastError = error3;
+				this.log.warn(`Format 3 error for ${dateStr}: ${error3.message}`);
 			}
 			
 			// Try Format 4: Without date parameters (get all)
@@ -264,21 +268,27 @@ class Edupage extends utils.Adapter {
 					data: {},
 					autoLogin: true,
 				});
+				this.log.warn(`Format 4 response for ${dateStr}: ${JSON.stringify(menuData)}`);
 				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData) || menuData.status === 'ok')) {
 					// Filter by date if we got all data
 					return menuData;
 				}
 			} catch (error4) {
 				lastError = error4;
+				this.log.warn(`Format 4 error for ${dateStr}: ${error4.message}`);
 			}
 			
 			// Try Format 5: Check if menu data is already in _data (from refreshEdupage)
+			this.log.warn(`Checking _data.strava for ${dateStr}: ${JSON.stringify(this.edupageClient._data?.strava || 'not found')}`);
 			if (this.edupageClient._data && this.edupageClient._data.strava) {
 				const stravaData = this.edupageClient._data.strava;
 				if (stravaData.menu || stravaData.dishes || stravaData.items) {
 					return stravaData;
 				}
 			}
+			
+			// Try Format 6: Check entire _data structure for menu-related data
+			this.log.warn(`Checking _data keys for ${dateStr}: ${Object.keys(this.edupageClient._data || {}).join(', ')}`);
 			
 			// Log the last error for debugging
 			if (lastError) {
