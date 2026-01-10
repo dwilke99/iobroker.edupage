@@ -152,6 +152,165 @@ class Edupage extends utils.Adapter {
 	}
 
 	/**
+	 * Generate HTML for homework visualization
+	 * @param {Array} pending - Array of pending homework items
+	 * @param {Array} completed - Array of completed homework items
+	 * @returns {string} HTML string ready for VIS
+	 */
+	generateHomeworkHTML(pending, completed) {
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		const tomorrow = new Date(today);
+		tomorrow.setDate(today.getDate() + 1);
+
+		// Categorize and sort pending items
+		const overdue = [];
+		const upcoming = [];
+
+		pending.forEach(hw => {
+			if (!hw.dueDate) {
+				upcoming.push(hw);
+				return;
+			}
+
+			const dueDate = new Date(hw.dueDate);
+			dueDate.setHours(0, 0, 0, 0);
+
+			if (dueDate.getTime() < today.getTime()) {
+				overdue.push(hw);
+			} else {
+				upcoming.push(hw);
+			}
+		});
+
+		// Sort overdue: newest overdue first
+		overdue.sort((a, b) => {
+			const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+			const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+			return dateB - dateA; // Descending (newest first)
+		});
+
+		// Sort upcoming: sooner due dates first
+		upcoming.sort((a, b) => {
+			const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 9999999999999;
+			const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 9999999999999;
+			return dateA - dateB; // Ascending (soonest first)
+		});
+
+		// Sort completed: newest done first, limit to 2
+		const history = [...completed]
+			.sort((a, b) => {
+				const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+				const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+				return dateB - dateA; // Descending (newest first)
+			})
+			.slice(0, 2);
+
+		// Helper function to format date
+		const formatDate = (dateStr) => {
+			if (!dateStr) {
+				return '';
+			}
+			const date = new Date(dateStr);
+			const day = String(date.getDate()).padStart(2, '0');
+			const month = String(date.getMonth() + 1).padStart(2, '0');
+			const year = date.getFullYear();
+			return `${day}.${month}.${year}`;
+		};
+
+		// Helper function to get date label and color
+		const getDateInfo = (dateStr) => {
+			if (!dateStr) {
+				return { label: '', color: '#3498db', prefix: '' };
+			}
+
+			const dueDate = new Date(dateStr);
+			dueDate.setHours(0, 0, 0, 0);
+
+			if (dueDate.getTime() === today.getTime()) {
+				return { label: 'Heute', color: '#e67e22', prefix: '' };
+			}
+			if (dueDate.getTime() === tomorrow.getTime()) {
+				return { label: 'Morgen', color: '#3498db', prefix: '' };
+			}
+			if (dueDate.getTime() < today.getTime()) {
+				return { label: '', color: '#e74c3c', prefix: '❗ ' };
+			}
+			return { label: '', color: '#3498db', prefix: '' };
+		};
+
+		// Helper function to escape HTML
+		const escapeHtml = (text) => {
+			if (!text) {
+				return '';
+			}
+			return String(text)
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;')
+				.replace(/'/g, '&#039;');
+		};
+
+		// Helper function to create a card HTML
+		const createCard = (hw, borderColor, dateLabel, datePrefix, isCompleted = false) => {
+			const subject = escapeHtml(hw.subject || 'Kein Fach');
+			const title = escapeHtml(hw.title || 'Kein Titel');
+			const description = escapeHtml(hw.description || '');
+			const dueDateStr = formatDate(hw.dueDate);
+			const opacity = isCompleted ? 'opacity: 0.7;' : '';
+
+			return `
+<div style="background-color: #ffffff; border-left: 4px solid ${borderColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 12px; padding: 12px; font-family: Arial, sans-serif; ${opacity}">
+	<div style="font-weight: bold; font-size: 16px; color: #333; margin-bottom: 4px;">${subject}</div>
+	<div style="font-size: 14px; color: #555; margin-bottom: 8px;">${title}</div>
+	${description ? `<div style="font-size: 12px; color: #777; margin-bottom: 8px;">${description}</div>` : ''}
+	<div style="font-size: 12px; color: #999;">
+		${datePrefix}${dueDateStr}${dateLabel ? ` - ${dateLabel}` : ''}
+	</div>
+</div>`;
+		};
+
+		// Build HTML
+		let html = '<div style="font-family: Arial, sans-serif;">';
+		html += '<div style="font-size: 20px; font-weight: bold; margin-bottom: 16px; color: #333;">📝 Hausaufgaben</div>';
+
+		// Overdue section
+		if (overdue.length > 0) {
+			overdue.forEach(hw => {
+				const dateInfo = getDateInfo(hw.dueDate);
+				html += createCard(hw, dateInfo.color, dateInfo.label, dateInfo.prefix);
+			});
+		}
+
+		// Upcoming section
+		if (upcoming.length > 0) {
+			upcoming.forEach(hw => {
+				const dateInfo = getDateInfo(hw.dueDate);
+				html += createCard(hw, dateInfo.color, dateInfo.label, dateInfo.prefix);
+			});
+		}
+
+		// History section (completed)
+		if (history.length > 0) {
+			html += '<div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #ddd;">';
+			html += '<div style="font-size: 14px; font-weight: bold; color: #999; margin-bottom: 8px;">Erledigt</div>';
+			history.forEach(hw => {
+				html += createCard(hw, '#ccc', '', '', true);
+			});
+			html += '</div>';
+		}
+
+		// Empty state
+		if (overdue.length === 0 && upcoming.length === 0 && history.length === 0) {
+			html += '<div style="text-align: center; padding: 20px; color: #999; font-size: 14px;">Keine Hausaufgaben</div>';
+		}
+
+		html += '</div>';
+		return html;
+	}
+
+	/**
 	 * Calculate the next school day from a given date
 	 * If date is Friday, Saturday, or Sunday -> returns Monday
 	 * Otherwise -> returns date + 1 day
@@ -394,6 +553,10 @@ class Edupage extends utils.Adapter {
 			const completedJson = JSON.stringify(completedHomeworks.length > 0 ? completedHomeworks : []);
 			await this.setState('data.homework.pending_json', { val: pendingJson, ack: true });
 			await this.setState('data.homework.completed_json', { val: completedJson, ack: true });
+
+			// Generate and save HTML for VIS
+			const homeworkHTML = this.generateHomeworkHTML(pendingHomeworks, completedHomeworks);
+			await this.setState('data.homework.vis_html', { val: homeworkHTML, ack: true });
 
 			// Save notifications data (legacy states for backward compatibility)
 			const notificationsJson = JSON.stringify(timelineData);

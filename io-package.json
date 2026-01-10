@@ -200,6 +200,18 @@
 			"native": {}
 		},
 		{
+			"_id": "data.homework.vis_html",
+			"type": "state",
+			"common": {
+				"name": "Pre-rendered HTML for VIS",
+				"type": "string",
+				"role": "html",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
 			"_id": "data.notifications",
 			"type": "channel",
 			"common": {
