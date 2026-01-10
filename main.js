@@ -306,13 +306,26 @@ class Edupage extends utils.Adapter {
 					}
 				}
 				
-				// Check all dates for menu data structure
+				// Check ALL available dates to understand the structure (even if not the exact date we're looking for)
+				// This helps us understand where menu data might be stored
 				for (const [dateKey, dateData] of Object.entries(dpDates)) {
 					if (dateData && typeof dateData === 'object') {
 						const dateDataKeys = Object.keys(dateData);
+						this.log.warn(`dp.dates[${dateKey}] has keys: ${dateDataKeys.join(', ')}`);
+						
+						// Look for any menu-related keys
 						if (dateDataKeys.some(key => key.toLowerCase().includes('strava') || key.toLowerCase().includes('menu'))) {
 							this.log.warn(`Found potential menu keys in dp.dates[${dateKey}]: ${dateDataKeys.join(', ')}`);
-							this.log.warn(`dp.dates[${dateKey}] full data: ${JSON.stringify(dateData).substring(0, 500)}`);
+							this.log.warn(`dp.dates[${dateKey}] full data (first 1000 chars): ${JSON.stringify(dateData).substring(0, 1000)}`);
+						}
+						
+						// Also check if there's a lessons array that might contain menu info
+						if (dateData.lessons && Array.isArray(dateData.lessons)) {
+							this.log.warn(`dp.dates[${dateKey}] has ${dateData.lessons.length} lessons`);
+							// Check first lesson structure
+							if (dateData.lessons.length > 0) {
+								this.log.warn(`First lesson keys: ${Object.keys(dateData.lessons[0] || {}).join(', ')}`);
+							}
 						}
 					}
 				}
