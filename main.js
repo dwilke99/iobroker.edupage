@@ -290,11 +290,57 @@ class Edupage extends utils.Adapter {
 			// Try Format 6: Check entire _data structure for menu-related data
 			this.log.warn(`Checking _data keys for ${dateStr}: ${Object.keys(this.edupageClient._data || {}).join(', ')}`);
 			
+			// Try Format 7: Check if menu data is in dp (daily plan) or events
+			if (this.edupageClient._data && this.edupageClient._data.dp) {
+				this.log.warn(`Checking dp.dates for ${dateStr}: ${JSON.stringify(Object.keys(this.edupageClient._data.dp.dates || {}))}`);
+				// Check if there's menu data in the daily plan
+				const dpDates = this.edupageClient._data.dp.dates || {};
+				for (const [dateKey, dateData] of Object.entries(dpDates)) {
+					if (dateKey.includes(dateStr) || dateData.strava || dateData.menu) {
+						this.log.warn(`Found potential menu data in dp.dates[${dateKey}]: ${JSON.stringify(dateData)}`);
+						if (dateData.strava || dateData.menu) {
+							return dateData.strava || dateData.menu;
+						}
+					}
+				}
+			}
+			
+			// Try Format 8: Fetch menu page as HTML and parse it
+			try {
+				const menuHtmlUrl = `${this.edupageClient.baseUrl}/strava/`;
+				const menuHtml = await this.edupageClient.api({
+					url: menuHtmlUrl,
+					method: 'GET',
+					type: 'text',
+					autoLogin: true,
+				});
+				this.log.warn(`Format 8 (HTML) response length for ${dateStr}: ${menuHtml ? menuHtml.length : 0} chars`);
+				if (menuHtml && typeof menuHtml === 'string' && menuHtml.length > 0) {
+					// Try to extract menu data from HTML
+					// Look for JSON data embedded in HTML
+					const jsonMatch = menuHtml.match(/\.userhome\((.+?)\);/);
+					if (jsonMatch) {
+						try {
+							const parsedData = JSON.parse(jsonMatch[1]);
+							this.log.warn(`Format 8 parsed JSON keys: ${Object.keys(parsedData).join(', ')}`);
+							if (parsedData.strava || parsedData.menu) {
+								return parsedData.strava || parsedData.menu;
+							}
+						} catch (parseError) {
+							this.log.warn(`Format 8 JSON parse error: ${parseError.message}`);
+						}
+					}
+				}
+			} catch (error8) {
+				lastError = error8;
+				this.log.warn(`Format 8 error for ${dateStr}: ${error8.message}`);
+			}
+			
 			// Log the last error for debugging
 			if (lastError) {
-				this.log.debug(`Meals fetch error for ${dateStr}: ${lastError.message}`);
+				this.log.warn(`Final meals fetch error for ${dateStr}: ${lastError.message}`);
 			} else {
-				this.log.debug(`Meals not available for ${dateStr} (no valid data in response)`);
+				this.log.warn(`Meals not available for ${dateStr} (no valid data in response)`);
 			}
 			return null;
 		} catch (error) {
