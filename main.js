@@ -126,17 +126,27 @@ class Edupage extends utils.Adapter {
 			const dateStr = date.toISOString().split('T')[0];
 			
 			// Use the API method to fetch menu data
+			// Note: Menu endpoint might not be available for all schools
 			const menuData = await this.edupageClient.api({
 				url: 'stravamenu',
 				data: {
 					datefrom: dateStr,
 					dateto: dateStr
-				}
+				},
+				autoLogin: false // Prevent auto-login retry loops
 			});
 
-			return menuData;
+			// Check if we got valid menu data
+			if (menuData && (menuData.menu || menuData.dishes || menuData.items)) {
+				return menuData;
+			}
+			
+			// Menu might not be available for this school/date
+			return null;
 		} catch (error) {
-			this.log.warn(`Failed to fetch menu for ${date.toISOString().split('T')[0]}: ${error.message}`);
+			// Menu functionality might not be available for all schools
+			// Only log at debug level to avoid warning spam
+			this.log.debug(`Menu not available for ${date.toISOString().split('T')[0]}: ${error.message}`);
 			return null;
 		}
 	}
