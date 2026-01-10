@@ -64,50 +64,72 @@ class Edupage extends utils.Adapter {
 			await this.edupageClient.login(username, password);
 			this.log.info('Successfully logged in to Edupage');
 
-			// Get and log all available students (children for parent accounts)
+			// Get all available students (children for parent accounts)
 			const availableStudents = this.edupageClient.students || [];
 			this.log.info(`Found ${availableStudents.length} student(s) in account:`);
 			availableStudents.forEach(student => {
-				const fullName = student.name || 
-					(student.firstname && student.lastname ? `${student.firstname} ${student.lastname}` : 
-					(student.firstName && student.lastName ? `${student.firstName} ${student.lastName}` : 'Unknown'));
-				this.log.info(`  Gefundenes Kind: ${fullName}`);
+				const fullName = student.name ||
+					(student.firstname && student.lastname ? `${student.firstname} ${student.lastname}` :
+						(student.firstName && student.lastName ? `${student.firstName} ${student.lastName}` : 'Unknown'));
+				this.log.info(`  Available student: ${fullName}`);
 			});
 
-			// Look up target student if studentName is configured
-			if (studentName) {
-				// Search for exact match first, then partial match
+			// Student selection logic
+			if (studentName && studentName.trim()) {
+				// Search for matching student
 				const foundStudent = availableStudents.find(student => {
-					const fullName = student.name || 
-						(student.firstname && student.lastname ? `${student.firstname} ${student.lastname}` : 
-						(student.firstName && student.lastName ? `${student.firstName} ${student.lastName}` : ''));
-					// Try exact match first
-					return fullName === studentName || fullName.toLowerCase() === studentName.toLowerCase();
+					const fullName = student.name ||
+						(student.firstname && student.lastname ? `${student.firstname} ${student.lastname}` :
+							(student.firstName && student.lastName ? `${student.firstName} ${student.lastName}` : ''));
+					// Try exact match first (case-insensitive)
+					return fullName && fullName.toLowerCase() === studentName.trim().toLowerCase();
 				}) || availableStudents.find(student => {
-					const fullName = student.name || 
-						(student.firstname && student.lastname ? `${student.firstname} ${student.lastname}` : 
-						(student.firstName && student.lastName ? `${student.firstName} ${student.lastName}` : ''));
+					const fullName = student.name ||
+						(student.firstname && student.lastname ? `${student.firstname} ${student.lastname}` :
+							(student.firstName && student.lastName ? `${student.firstName} ${student.lastName}` : ''));
 					// Fallback to partial match
-					return fullName.toLowerCase().includes(studentName.toLowerCase()) ||
-						studentName.toLowerCase().includes(fullName.toLowerCase());
+					return fullName && (
+						fullName.toLowerCase().includes(studentName.trim().toLowerCase()) ||
+						studentName.trim().toLowerCase().includes(fullName.toLowerCase())
+					);
 				});
 
 				if (foundStudent) {
 					this.targetStudent = foundStudent;
 					this.studentId = foundStudent.id;
-					const fullName = foundStudent.name || 
-						(foundStudent.firstname && foundStudent.lastname ? `${foundStudent.firstname} ${foundStudent.lastname}` : 
-						(foundStudent.firstName && foundStudent.lastName ? `${foundStudent.firstName} ${foundStudent.lastName}` : 'Unknown'));
-					this.log.info(`Selected student: ${fullName} (ID: ${this.studentId})`);
+					const fullName = foundStudent.name ||
+						(foundStudent.firstname && foundStudent.lastname ? `${foundStudent.firstname} ${foundStudent.lastname}` :
+							(foundStudent.firstName && foundStudent.lastName ? `${foundStudent.firstName} ${foundStudent.lastName}` : 'Unknown'));
+					this.log.info(`Using student: ${fullName} (ID: ${this.studentId})`);
 				} else {
-					this.log.warn(`Student "${studentName}" not found in students list. Available students logged above. Using main account data.`);
-					this.targetStudent = null;
-					this.studentId = null;
+					this.log.warn(`Student "${studentName}" not found. Available students logged above. Using main account data.`);
+					// Default to first student if available, otherwise main account
+					if (availableStudents.length > 0) {
+						this.targetStudent = availableStudents[0];
+						this.studentId = availableStudents[0].id;
+						const defaultName = availableStudents[0].name ||
+							(availableStudents[0].firstname && availableStudents[0].lastname ? `${availableStudents[0].firstname} ${availableStudents[0].lastname}` :
+								(availableStudents[0].firstName && availableStudents[0].lastName ? `${availableStudents[0].firstName} ${availableStudents[0].lastName}` : 'Unknown'));
+						this.log.warn(`Defaulting to first available student: ${defaultName}`);
+					} else {
+						this.targetStudent = null;
+						this.studentId = null;
+					}
 				}
 			} else {
-				this.targetStudent = null;
-				this.studentId = null;
-				this.log.info('No student name configured. Using main account data.');
+				// No student name configured - use first student if available, otherwise main account
+				if (availableStudents.length > 0) {
+					this.targetStudent = availableStudents[0];
+					this.studentId = availableStudents[0].id;
+					const defaultName = availableStudents[0].name ||
+						(availableStudents[0].firstname && availableStudents[0].lastname ? `${availableStudents[0].firstname} ${availableStudents[0].lastname}` :
+							(availableStudents[0].firstName && availableStudents[0].lastName ? `${availableStudents[0].firstName} ${availableStudents[0].lastName}` : 'Unknown'));
+					this.log.info(`No student name configured. Using first available student: ${defaultName}`);
+				} else {
+					this.targetStudent = null;
+					this.studentId = null;
+					this.log.info('No student name configured. Using main account data.');
+				}
 			}
 
 			// Set connection status
@@ -154,413 +176,6 @@ class Edupage extends utils.Adapter {
 		return nextDay;
 	}
 
-	/**
-	 * Get all weekdays (Monday to Friday) for the current week
-	 * @returns {Date[]} Array of Date objects for Monday through Friday
-	 */
-	getCurrentWeekDays() {
-		const today = new Date();
-		today.setHours(0, 0, 0, 0);
-		
-		// Get Monday of current week
-		const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-		const monday = new Date(today);
-		
-		// Calculate days to subtract to get to Monday
-		// If today is Sunday (0), go back 6 days; if Monday (1), go back 0 days, etc.
-		const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-		monday.setDate(today.getDate() - daysToMonday);
-		
-		// Generate array of Monday through Friday
-		const weekDays = [];
-		for (let i = 0; i < 5; i++) {
-			const day = new Date(monday);
-			day.setDate(monday.getDate() + i);
-			weekDays.push(day);
-		}
-		
-		return weekDays;
-	}
-
-	/**
-	 * Fetch meals/menu for a specific date using the Edupage API
-	 * @param {Date} date - Date to fetch meals for
-	 * @returns {Promise<object|null>} Raw menu data from API or null if error/not available
-	 */
-	async getMeals(date) {
-		if (!this.edupageClient) {
-			return null;
-		}
-
-		try {
-			// Format date as YYYY-MM-DD
-			const dateStr = date.toISOString().split('T')[0];
-			
-			// Try different endpoint formats - the menu endpoint format may vary
-			let menuData = null;
-			let lastError = null;
-			
-			// Try Format 1: Timeline-style endpoint (most common pattern)
-			try {
-				const menuUrl1 = `${this.edupageClient.baseUrl}/strava/?akcia=stravamenu`;
-				menuData = await this.edupageClient.api({
-					url: menuUrl1,
-					data: {
-						datefrom: dateStr,
-						dateto: dateStr,
-					},
-					autoLogin: true,
-				});
-				// Log ALL responses at warn level for debugging
-				this.log.warn(`Format 1 response for ${dateStr}: ${JSON.stringify(menuData)}`);
-				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData) || menuData.status === 'ok')) {
-					return menuData;
-				}
-			} catch (error1) {
-				lastError = error1;
-				this.log.warn(`Format 1 error for ${dateStr}: ${error1.message} - ${error1.stack || ''}`);
-			}
-			
-			// Try Format 2: Server-side script pattern
-			try {
-				const menuUrl2 = `${this.edupageClient.baseUrl}/strava/server/stravamenu.js?__func=getMenu`;
-				menuData = await this.edupageClient.api({
-					url: menuUrl2,
-					data: {
-						datefrom: dateStr,
-						dateto: dateStr,
-					},
-					autoLogin: true,
-				});
-				this.log.warn(`Format 2 response for ${dateStr}: ${JSON.stringify(menuData)}`);
-				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData) || menuData.status === 'ok')) {
-					return menuData;
-				}
-			} catch (error2) {
-				lastError = error2;
-				this.log.warn(`Format 2 error for ${dateStr}: ${error2.message}`);
-			}
-			
-			// Try Format 3: Direct endpoint with different parameter names
-			try {
-				const menuUrl3 = `${this.edupageClient.baseUrl}/strava/?akcia=stravamenu`;
-				menuData = await this.edupageClient.api({
-					url: menuUrl3,
-					data: {
-						date: dateStr,
-					},
-					autoLogin: true,
-				});
-				this.log.warn(`Format 3 response for ${dateStr}: ${JSON.stringify(menuData)}`);
-				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData) || menuData.status === 'ok')) {
-					return menuData;
-				}
-			} catch (error3) {
-				lastError = error3;
-				this.log.warn(`Format 3 error for ${dateStr}: ${error3.message}`);
-			}
-			
-			// Try Format 4: Without date parameters (get all)
-			try {
-				const menuUrl4 = `${this.edupageClient.baseUrl}/strava/?akcia=stravamenu`;
-				menuData = await this.edupageClient.api({
-					url: menuUrl4,
-					data: {},
-					autoLogin: true,
-				});
-				this.log.warn(`Format 4 response for ${dateStr}: ${JSON.stringify(menuData)}`);
-				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result || Array.isArray(menuData) || menuData.status === 'ok')) {
-					// Filter by date if we got all data
-					return menuData;
-				}
-			} catch (error4) {
-				lastError = error4;
-				this.log.warn(`Format 4 error for ${dateStr}: ${error4.message}`);
-			}
-			
-			// Try Format 5: Check if menu data is already in _data (from refreshEdupage)
-			this.log.warn(`Checking _data.strava for ${dateStr}: ${JSON.stringify(this.edupageClient._data?.strava || 'not found')}`);
-			if (this.edupageClient._data && this.edupageClient._data.strava) {
-				const stravaData = this.edupageClient._data.strava;
-				if (stravaData.menu || stravaData.dishes || stravaData.items) {
-					return stravaData;
-				}
-			}
-			
-			// Try Format 6: Check entire _data structure for menu-related data
-			this.log.warn(`Checking _data keys for ${dateStr}: ${Object.keys(this.edupageClient._data || {}).join(', ')}`);
-			
-			// Try Format 7: Check if menu data is in dp (daily plan) or events
-			if (this.edupageClient._data && this.edupageClient._data.dp && this.edupageClient._data.dp.dates) {
-				const dpDates = this.edupageClient._data.dp.dates || {};
-				const availableDates = Object.keys(dpDates);
-				this.log.warn(`Checking dp.dates for ${dateStr}: Available dates: ${availableDates.join(', ')}`);
-				
-				// Check exact date match first
-				if (dpDates[dateStr]) {
-					const dateData = dpDates[dateStr];
-					this.log.warn(`dp.dates[${dateStr}] structure: ${JSON.stringify(Object.keys(dateData || {}))}`);
-					if (dateData.strava || dateData.menu) {
-						this.log.warn(`Found menu data in dp.dates[${dateStr}]: ${JSON.stringify(dateData.strava || dateData.menu)}`);
-						return dateData.strava || dateData.menu;
-					}
-				}
-				
-				// Check ALL available dates to understand the structure (even if not the exact date we're looking for)
-				// This helps us understand where menu data might be stored
-				for (const [dateKey, dateData] of Object.entries(dpDates)) {
-					if (dateData && typeof dateData === 'object') {
-						const dateDataKeys = Object.keys(dateData);
-						this.log.warn(`dp.dates[${dateKey}] has keys: ${dateDataKeys.join(', ')}`);
-						
-						// Look for any menu-related keys
-						if (dateDataKeys.some(key => key.toLowerCase().includes('strava') || key.toLowerCase().includes('menu'))) {
-							this.log.warn(`Found potential menu keys in dp.dates[${dateKey}]: ${dateDataKeys.join(', ')}`);
-							this.log.warn(`dp.dates[${dateKey}] full data (first 1000 chars): ${JSON.stringify(dateData).substring(0, 1000)}`);
-						}
-						
-						// Also check if there's a lessons array that might contain menu info
-						if (dateData.lessons && Array.isArray(dateData.lessons)) {
-							this.log.warn(`dp.dates[${dateKey}] has ${dateData.lessons.length} lessons`);
-							// Check first lesson structure
-							if (dateData.lessons.length > 0) {
-								this.log.warn(`First lesson keys: ${Object.keys(dateData.lessons[0] || {}).join(', ')}`);
-							}
-						}
-					}
-				}
-			}
-			
-			// Try Format 8: Check events for menu-related data
-			if (this.edupageClient._data && this.edupageClient._data.events) {
-				this.log.warn(`Checking events for ${dateStr}: ${Array.isArray(this.edupageClient._data.events) ? this.edupageClient._data.events.length : 'not array'} events`);
-				// Events might contain menu information
-				const events = Array.isArray(this.edupageClient._data.events) ? this.edupageClient._data.events : [];
-				for (const event of events) {
-					if (event && (event.type === 'strava' || event.type === 'menu' || event.typ === 'strava' || event.typ === 'menu')) {
-						this.log.warn(`Found menu event: ${JSON.stringify(event)}`);
-						if (event.data || event.menu) {
-							return event.data || event.menu;
-						}
-					}
-				}
-			}
-			
-			// Try Format 9: Check if menu is in dbi (database info)
-			if (this.edupageClient._data && this.edupageClient._data.dbi) {
-				const dbiKeys = Object.keys(this.edupageClient._data.dbi || {});
-				const menuRelatedKeys = dbiKeys.filter(key => key.toLowerCase().includes('strava') || key.toLowerCase().includes('menu'));
-				if (menuRelatedKeys.length > 0) {
-					this.log.warn(`Found menu-related keys in dbi: ${menuRelatedKeys.join(', ')}`);
-					for (const key of menuRelatedKeys) {
-						const menuData = this.edupageClient._data.dbi[key];
-						this.log.warn(`dbi[${key}] sample: ${JSON.stringify(menuData).substring(0, 500)}`);
-					}
-				}
-			}
-			
-			// Log the last error for debugging
-			if (lastError) {
-				this.log.warn(`Final meals fetch error for ${dateStr}: ${lastError.message}`);
-			} else {
-				this.log.warn(`Meals not available for ${dateStr} (no valid data in response)`);
-			}
-			return null;
-		} catch (error) {
-			this.log.debug(`Error fetching meals for ${date.toISOString().split('T')[0]}: ${error.message}`);
-			return null;
-		}
-	}
-
-	/**
-	 * Parse all meal items from menu data and concatenate them
-	 * @param {object|Array} menuData - Menu data from API response
-	 * @returns {string} Concatenated meal text with newlines, or "Keine Daten" if empty
-	 */
-	parseMealItems(menuData) {
-		if (!menuData) {
-			return 'Keine Daten';
-		}
-
-		const mealParts = [];
-
-		// Handle different response structures
-		// Check if response is a list/array directly
-		if (Array.isArray(menuData)) {
-			menuData.forEach(item => {
-				const text = item.text || item.description || item.name || item.title;
-				if (text) {
-					mealParts.push(text);
-				}
-			});
-		} else {
-			// Check if response contains a list/array in a property
-			let itemsArray = null;
-
-			if (menuData.dishes && Array.isArray(menuData.dishes)) {
-				itemsArray = menuData.dishes;
-			} else if (menuData.items && Array.isArray(menuData.items)) {
-				itemsArray = menuData.items;
-			} else if (menuData.data && Array.isArray(menuData.data)) {
-				itemsArray = menuData.data;
-			} else if (menuData.result && Array.isArray(menuData.result)) {
-				itemsArray = menuData.result;
-			}
-
-			if (itemsArray) {
-				itemsArray.forEach(item => {
-					const text = item.text || item.description || item.name || item.title;
-					if (text) {
-						mealParts.push(text);
-					}
-				});
-			}
-
-			// Check for menu object structure
-			if (menuData.menu) {
-				const menu = menuData.menu;
-				
-				// Check for Menu A
-				if (menu.menuA && menu.menuA.name) {
-					mealParts.push(menu.menuA.name);
-				}
-				
-				// Check for dishes array in menu
-				if (menu.dishes && Array.isArray(menu.dishes)) {
-					menu.dishes.forEach(dish => {
-						const text = dish.text || dish.description || dish.name || dish.title;
-						if (text) {
-							mealParts.push(text);
-						}
-					});
-				}
-				
-				// Check for items array in menu
-				if (menu.items && Array.isArray(menu.items)) {
-					menu.items.forEach(item => {
-						const text = item.text || item.description || item.name || item.title;
-						if (text) {
-							mealParts.push(text);
-						}
-					});
-				}
-				
-				// Fallback: menu name
-				if (menu.name && mealParts.length === 0) {
-					mealParts.push(menu.name);
-				}
-			}
-
-			// Direct text/description/name fields (if no array found)
-			if (mealParts.length === 0) {
-				if (menuData.text) {
-					mealParts.push(menuData.text);
-				} else if (menuData.description) {
-					mealParts.push(menuData.description);
-				} else if (menuData.name) {
-					mealParts.push(menuData.name);
-				}
-			}
-		}
-
-		// Return concatenated meals with newlines, or "Keine Daten" if empty
-		return mealParts.length > 0 ? mealParts.join('\n') : 'Keine Daten';
-	}
-
-
-	/**
-	 * Sync canteen/menu data for the week
-	 * @param {Date} today - Today's date
-	 * @param {Date} nextSchoolDay - Next school day date
-	 */
-	async syncCanteenData(today, nextSchoolDay) {
-		try {
-			// Get week dates (Monday to Friday)
-			const weekDays = this.getCurrentWeekDays();
-			const weekMenuData = [];
-			const dayNames = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag'];
-
-			// Loop through each day of the week
-			for (let i = 0; i < weekDays.length; i++) {
-				const day = weekDays[i];
-				const dateStr = day.toISOString().split('T')[0];
-				
-				try {
-					// Fetch raw meals data from API
-					const rawMealsData = await this.getMeals(day);
-					
-					// CRITICAL: Log raw API response for debugging
-					this.log.warn(`RAW MEALS for ${dateStr}: ${JSON.stringify(rawMealsData)}`);
-					
-					// Parse all meal items and concatenate them
-					const menuText = this.parseMealItems(rawMealsData);
-					
-					weekMenuData.push({
-						date: dateStr,
-						dayName: dayNames[i],
-						menu: menuText
-					});
-				} catch (error) {
-					this.log.debug(`Failed to fetch meal for ${dateStr}: ${error.message}`);
-					// Add entry with "Keine Daten" if error
-					weekMenuData.push({
-						date: dateStr,
-						dayName: dayNames[i],
-						menu: 'Keine Daten'
-					});
-				}
-			}
-
-			// Sort by date (should already be sorted, but ensure it)
-			weekMenuData.sort((a, b) => a.date.localeCompare(b.date));
-
-			// Save weekly menu data
-			await this.setState('data.canteen.week_json', { val: JSON.stringify(weekMenuData), ack: true });
-			this.log.debug(`Fetched meals for ${weekMenuData.length} days`);
-
-			// Find today's entry and save to data.canteen.today_json
-			const todayStr = today.toISOString().split('T')[0];
-			const todayEntry = weekMenuData.find(entry => entry.date === todayStr);
-			if (todayEntry) {
-				await this.setState('data.canteen.today_json', { val: JSON.stringify(todayEntry), ack: true });
-			} else {
-				// Fallback: create entry for today
-				const todayDayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1; // Sunday = 6, Monday = 0, etc.
-				const todayDayName = todayDayIndex >= 0 && todayDayIndex < dayNames.length
-					? dayNames[todayDayIndex]
-					: 'Unbekannt';
-				await this.setState('data.canteen.today_json', {
-					val: JSON.stringify({ date: todayStr, dayName: todayDayName, menu: 'Keine Daten' }),
-					ack: true
-				});
-			}
-
-			// Find next school day's entry and save to data.canteen.tomorrow_json
-			const nextSchoolDayStr = nextSchoolDay.toISOString().split('T')[0];
-			const nextSchoolDayEntry = weekMenuData.find(entry => entry.date === nextSchoolDayStr);
-			if (nextSchoolDayEntry) {
-				await this.setState('data.canteen.tomorrow_json', {
-					val: JSON.stringify(nextSchoolDayEntry),
-					ack: true
-				});
-				// Extract just the menu text for tomorrow_text
-				await this.setState('data.canteen.tomorrow_text', { val: nextSchoolDayEntry.menu, ack: true });
-			} else {
-				// Fallback: create entry for next school day
-				const nextDayIndex = nextSchoolDay.getDay() === 0 ? 6 : nextSchoolDay.getDay() - 1;
-				const nextDayName = nextDayIndex >= 0 && nextDayIndex < dayNames.length
-					? dayNames[nextDayIndex]
-					: 'Unbekannt';
-				await this.setState('data.canteen.tomorrow_json', {
-					val: JSON.stringify({ date: nextSchoolDayStr, dayName: nextDayName, menu: 'Keine Daten' }),
-					ack: true
-				});
-				await this.setState('data.canteen.tomorrow_text', { val: 'Keine Daten', ack: true });
-			}
-		} catch (error) {
-			this.log.error(`Error syncing canteen data: ${error.message}`);
-		}
-	}
 
 	/**
 	 * Sync data from Edupage API
@@ -588,16 +203,21 @@ class Edupage extends utils.Adapter {
 			let todayTimetable = null;
 			let nextSchoolDayTimetable = null;
 
+			// Fetch timetables with error handling
 			try {
+				// Note: getTimetableForDate doesn't support passing student directly,
+				// but the timetable is already filtered by the logged-in user/student context
 				todayTimetable = await this.edupageClient.getTimetableForDate(today);
 			} catch (error) {
 				this.log.warn(`Failed to fetch today's timetable: ${error.message}`);
+				todayTimetable = null;
 			}
 
 			try {
 				nextSchoolDayTimetable = await this.edupageClient.getTimetableForDate(nextSchoolDay);
 			} catch (error) {
 				this.log.warn(`Failed to fetch next school day's timetable: ${error.message}`);
+				nextSchoolDayTimetable = null;
 			}
 
 			// Access homeworks and timeline (notifications) as properties
@@ -688,30 +308,74 @@ class Edupage extends utils.Adapter {
 							: '')) || '';
 			}
 
-			// Get teachers from the official API (refreshEdupage() populates this.edupageClient.teachers)
-			const teachersList = (this.edupageClient.teachers || [])
-				.map(teacher => {
-					let teacherName = teacher.name;
-					if (!teacherName && teacher.firstName && teacher.lastName) {
-						teacherName = `${teacher.firstName} ${teacher.lastName}`;
+			// Extract teachers from timetable (source of truth)
+			const teachersMap = new Map();
+			
+			// Collect teachers from today's timetable
+			if (todayTimetable && todayTimetable.lessons) {
+				todayTimetable.lessons.forEach(lesson => {
+					if (lesson.teachers && Array.isArray(lesson.teachers)) {
+						lesson.teachers.forEach(teacher => {
+							const teacherName = teacher.name || (teacher.firstName && teacher.lastName ? `${teacher.firstName} ${teacher.lastName}` : null) || (teacher.firstname && teacher.lastname ? `${teacher.firstname} ${teacher.lastname}` : null);
+							const subjectName = lesson.subject ? lesson.subject.name : null;
+							if (teacherName && teacher.id) {
+								if (!teachersMap.has(teacher.id)) {
+									teachersMap.set(teacher.id, {
+										id: teacher.id,
+										name: teacherName,
+										short: teacher.short || null,
+										subjects: new Set()
+									});
+								}
+								if (subjectName) {
+									teachersMap.get(teacher.id).subjects.add(subjectName);
+								}
+							}
+						});
 					}
-					if (!teacherName && teacher.firstname && teacher.lastname) {
-						teacherName = `${teacher.firstname} ${teacher.lastname}`;
+				});
+			}
+			
+			// Collect teachers from next school day's timetable
+			if (nextSchoolDayTimetable && nextSchoolDayTimetable.lessons) {
+				nextSchoolDayTimetable.lessons.forEach(lesson => {
+					if (lesson.teachers && Array.isArray(lesson.teachers)) {
+						lesson.teachers.forEach(teacher => {
+							const teacherName = teacher.name || (teacher.firstName && teacher.lastName ? `${teacher.firstName} ${teacher.lastName}` : null) || (teacher.firstname && teacher.lastname ? `${teacher.firstname} ${teacher.lastname}` : null);
+							const subjectName = lesson.subject ? lesson.subject.name : null;
+							if (teacherName && teacher.id) {
+								if (!teachersMap.has(teacher.id)) {
+									teachersMap.set(teacher.id, {
+										id: teacher.id,
+										name: teacherName,
+										short: teacher.short || null,
+										subjects: new Set()
+									});
+								}
+								if (subjectName) {
+									teachersMap.get(teacher.id).subjects.add(subjectName);
+								}
+							}
+						});
 					}
-					return {
-						id: teacher.id || null,
-						name: teacherName || null,
-						short: teacher.short || null
-					};
-				})
-				.filter(teacher => teacher.name !== null)
+				});
+			}
+			
+			// Convert to array and sort
+			const teachersList = Array.from(teachersMap.values())
+				.map(teacher => ({
+					id: teacher.id,
+					name: teacher.name,
+					short: teacher.short,
+					subjects: Array.from(teacher.subjects).sort()
+				}))
 				.sort((a, b) => {
 					const nameA = a.name || '';
 					const nameB = b.name || '';
 					return nameA.localeCompare(nameB);
 				});
 
-			this.log.debug(`Found ${teachersList.length} teachers from API`);
+			this.log.debug(`Found ${teachersList.length} unique teachers from timetable`);
 
 			// Extract unique subjects/classes from homeworks
 			const classesSet = new Set();
@@ -725,9 +389,9 @@ class Edupage extends utils.Adapter {
 			await this.setState('data.homework_json', { val: homeworkJson, ack: true });
 			await this.setState('data.homework_count', { val: homeworks.length, ack: true });
 
-			// Save pending and completed homeworks
-			const pendingJson = JSON.stringify(pendingHomeworks);
-			const completedJson = JSON.stringify(completedHomeworks);
+			// Save pending and completed homeworks (clear if empty)
+			const pendingJson = JSON.stringify(pendingHomeworks.length > 0 ? pendingHomeworks : []);
+			const completedJson = JSON.stringify(completedHomeworks.length > 0 ? completedHomeworks : []);
 			await this.setState('data.homework.pending_json', { val: pendingJson, ack: true });
 			await this.setState('data.homework.completed_json', { val: completedJson, ack: true });
 
@@ -771,8 +435,7 @@ class Edupage extends utils.Adapter {
 						endTime: lesson.period && lesson.period.endTime ? lesson.period.endTime : null,
 						subject: lesson.subject ? lesson.subject.name : null,
 						teacher: teacherNames,
-						topic: lesson.curriculum || null,
-						classroom: lesson.classrooms && lesson.classrooms.length > 0
+						room: lesson.classrooms && lesson.classrooms.length > 0
 							? lesson.classrooms.map(c => c.name || c.toString()).join(', ')
 							: null,
 						date: lesson.date ? lesson.date.toISOString().split('T')[0] : null
@@ -810,8 +473,7 @@ class Edupage extends utils.Adapter {
 						endTime: lesson.period && lesson.period.endTime ? lesson.period.endTime : null,
 						subject: lesson.subject ? lesson.subject.name : null,
 						teacher: teacherNames,
-						topic: lesson.curriculum || null,
-						classroom: lesson.classrooms && lesson.classrooms.length > 0
+						room: lesson.classrooms && lesson.classrooms.length > 0
 							? lesson.classrooms.map(c => c.name || c.toString()).join(', ')
 							: null,
 						date: lesson.date ? lesson.date.toISOString().split('T')[0] : null
@@ -819,17 +481,14 @@ class Edupage extends utils.Adapter {
 				});
 			}
 
-			// Save general info
-			await this.setState('info.student_name', { val: extractedStudentName, ack: true });
-			await this.setState('info.teachers_json', { val: JSON.stringify(teachersList), ack: true });
-			await this.setState('info.classes_json', { val: JSON.stringify(classesList), ack: true });
+			// Save general info (clear if empty)
+			await this.setState('info.student_name', { val: extractedStudentName || '', ack: true });
+			await this.setState('info.teachers_json', { val: JSON.stringify(teachersList.length > 0 ? teachersList : []), ack: true });
+			await this.setState('info.classes_json', { val: JSON.stringify(classesList.length > 0 ? classesList : []), ack: true });
 
-			// Save timetable data
-			await this.setState('data.classes.today_json', { val: JSON.stringify(todayLessons), ack: true });
-			await this.setState('data.classes.tomorrow_json', { val: JSON.stringify(nextSchoolDayLessons), ack: true });
-
-			// Sync canteen/menu data
-			await this.syncCanteenData(today, nextSchoolDay);
+			// Save timetable data (clear if empty)
+			await this.setState('data.classes.today_json', { val: JSON.stringify(todayLessons.length > 0 ? todayLessons : []), ack: true });
+			await this.setState('data.classes.tomorrow_json', { val: JSON.stringify(nextSchoolDayLessons.length > 0 ? nextSchoolDayLessons : []), ack: true });
 
 			this.log.debug(`Synced ${homeworks.length} homeworks (${pendingHomeworks.length} pending, ${completedHomeworks.length} completed), ${timeline.length} notifications (${todayNotifications.length} today), ${todayLessons.length} lessons today, ${nextSchoolDayLessons.length} lessons next school day`);
 

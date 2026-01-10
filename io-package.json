@@ -4,8 +4,8 @@
 		"version": "0.0.1",
 		"news": {
 			"0.0.1": {
-				"en": "Initial release with homework, timetable, and canteen support",
-				"de": "Erstveröffentlichung mit Hausaufgaben, Stundenplan und Mensa-Support",
+				"en": "Initial release with homework and timetable support",
+				"de": "Erstveröffentlichung mit Hausaufgaben und Stundenplan",
 				"ru": "Начальная версия с поддержкой домашних заданий, расписания и столовой",
 				"pt": "Lançamento inicial com suporte para lições de casa, horário e cantina",
 				"nl": "Eerste uitgave met ondersteuning voor huiswerk, rooster en kantine",
@@ -299,61 +299,5 @@
 			},
 			"native": {}
 		},
-		{
-			"_id": "data.canteen",
-			"type": "channel",
-			"common": {
-				"name": "Canteen"
-			},
-			"native": {}
-		},
-		{
-			"_id": "data.canteen.today_json",
-			"type": "state",
-			"common": {
-				"name": "Today's Menu (JSON)",
-				"type": "string",
-				"role": "json",
-				"read": true,
-				"write": false
-			},
-			"native": {}
-		},
-		{
-			"_id": "data.canteen.tomorrow_json",
-			"type": "state",
-			"common": {
-				"name": "Next School Day Menu (JSON)",
-				"type": "string",
-				"role": "json",
-				"read": true,
-				"write": false
-			},
-			"native": {}
-		},
-		{
-			"_id": "data.canteen.tomorrow_text",
-			"type": "state",
-			"common": {
-				"name": "Next School Day Main Dish",
-				"type": "string",
-				"role": "text",
-				"read": true,
-				"write": false
-			},
-			"native": {}
-		},
-		{
-			"_id": "data.canteen.week_json",
-			"type": "state",
-			"common": {
-				"name": "Menu for the whole week",
-				"type": "string",
-				"role": "json",
-				"read": true,
-				"write": false
-			},
-			"native": {}
-		}
 	]
 }
