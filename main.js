@@ -126,12 +126,15 @@ class Edupage extends utils.Adapter {
 			const dateStr = date.toISOString().split('T')[0];
 			
 			// Try different endpoint formats - the menu endpoint format may vary
-			// Format 1: /strava/?akcia=stravamenu (similar to timeline pattern)
-			let menuUrl = `${this.edupageClient.baseUrl}/strava/?akcia=stravamenu`;
+			// Format 1: Server-side script pattern (like online lessons)
+			let menuUrl = `${this.edupageClient.baseUrl}/strava/server/stravamenu.js?__func=getMenu`;
 			
 			// Use the API method to fetch menu data
 			// Note: Menu endpoint might not be available for all schools
 			let menuData;
+			let lastError;
+			
+			// Try Format 1: Server-side script
 			try {
 				menuData = await this.edupageClient.api({
 					url: menuUrl,
@@ -139,38 +142,63 @@ class Edupage extends utils.Adapter {
 						datefrom: dateStr,
 						dateto: dateStr,
 					},
-					autoLogin: false, // Prevent auto-login retry loops
+					autoLogin: false,
 				});
-			} catch (firstError) {
-				// Try alternative format: /strava/stravamenu
-				this.log.debug(`Trying alternative menu endpoint format for ${dateStr}`);
-				menuUrl = `${this.edupageClient.baseUrl}/strava/stravamenu`;
-				try {
-					menuData = await this.edupageClient.api({
-						url: menuUrl,
-						data: {
-							datefrom: dateStr,
-							dateto: dateStr,
-						},
-						autoLogin: false,
-					});
-				} catch (secondError) {
-					// Both formats failed
-					throw firstError;
+				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result)) {
+					return menuData;
 				}
-			}
-
-			// Check if we got valid menu data
-			if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result)) {
-				return menuData;
+			} catch (error1) {
+				lastError = error1;
+				this.log.debug(`Menu format 1 failed for ${dateStr}, trying format 2...`);
 			}
 			
-			// Menu might not be available for this school/date
+			// Try Format 2: Timeline-style endpoint
+			menuUrl = `${this.edupageClient.baseUrl}/strava/?akcia=stravamenu`;
+			try {
+				menuData = await this.edupageClient.api({
+					url: menuUrl,
+					data: {
+						datefrom: dateStr,
+						dateto: dateStr,
+					},
+					autoLogin: false,
+				});
+				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result)) {
+					return menuData;
+				}
+			} catch (error2) {
+				lastError = error2;
+				this.log.debug(`Menu format 2 failed for ${dateStr}, trying format 3...`);
+			}
+			
+			// Try Format 3: Direct endpoint
+			menuUrl = `${this.edupageClient.baseUrl}/strava/stravamenu`;
+			try {
+				menuData = await this.edupageClient.api({
+					url: menuUrl,
+					data: {
+						datefrom: dateStr,
+						dateto: dateStr,
+					},
+					autoLogin: false,
+				});
+				if (menuData && (menuData.menu || menuData.dishes || menuData.items || menuData.data || menuData.result)) {
+					return menuData;
+				}
+			} catch (error3) {
+				lastError = error3;
+			}
+			
+			// All formats failed or returned empty data
+			if (lastError) {
+				this.log.debug(`Menu not available for ${dateStr}: ${lastError.message}`);
+			} else {
+				this.log.debug(`Menu endpoint responded but no valid data for ${dateStr}`);
+			}
 			return null;
 		} catch (error) {
 			// Menu functionality might not be available for all schools
-			// Only log at debug level to avoid warning spam
-			this.log.debug(`Menu not available for ${date.toISOString().split('T')[0]}: ${error.message}`);
+			this.log.debug(`Menu fetch error for ${date.toISOString().split('T')[0]}: ${error.message}`);
 			return null;
 		}
 	}
