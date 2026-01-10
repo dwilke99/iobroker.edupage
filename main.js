@@ -291,49 +291,59 @@ class Edupage extends utils.Adapter {
 			this.log.warn(`Checking _data keys for ${dateStr}: ${Object.keys(this.edupageClient._data || {}).join(', ')}`);
 			
 			// Try Format 7: Check if menu data is in dp (daily plan) or events
-			if (this.edupageClient._data && this.edupageClient._data.dp) {
-				this.log.warn(`Checking dp.dates for ${dateStr}: ${JSON.stringify(Object.keys(this.edupageClient._data.dp.dates || {}))}`);
-				// Check if there's menu data in the daily plan
+			if (this.edupageClient._data && this.edupageClient._data.dp && this.edupageClient._data.dp.dates) {
 				const dpDates = this.edupageClient._data.dp.dates || {};
+				const availableDates = Object.keys(dpDates);
+				this.log.warn(`Checking dp.dates for ${dateStr}: Available dates: ${availableDates.join(', ')}`);
+				
+				// Check exact date match first
+				if (dpDates[dateStr]) {
+					const dateData = dpDates[dateStr];
+					this.log.warn(`dp.dates[${dateStr}] structure: ${JSON.stringify(Object.keys(dateData || {}))}`);
+					if (dateData.strava || dateData.menu) {
+						this.log.warn(`Found menu data in dp.dates[${dateStr}]: ${JSON.stringify(dateData.strava || dateData.menu)}`);
+						return dateData.strava || dateData.menu;
+					}
+				}
+				
+				// Check all dates for menu data structure
 				for (const [dateKey, dateData] of Object.entries(dpDates)) {
-					if (dateKey.includes(dateStr) || dateData.strava || dateData.menu) {
-						this.log.warn(`Found potential menu data in dp.dates[${dateKey}]: ${JSON.stringify(dateData)}`);
-						if (dateData.strava || dateData.menu) {
-							return dateData.strava || dateData.menu;
+					if (dateData && typeof dateData === 'object') {
+						const dateDataKeys = Object.keys(dateData);
+						if (dateDataKeys.some(key => key.toLowerCase().includes('strava') || key.toLowerCase().includes('menu'))) {
+							this.log.warn(`Found potential menu keys in dp.dates[${dateKey}]: ${dateDataKeys.join(', ')}`);
+							this.log.warn(`dp.dates[${dateKey}] full data: ${JSON.stringify(dateData).substring(0, 500)}`);
 						}
 					}
 				}
 			}
 			
-			// Try Format 8: Fetch menu page as HTML and parse it
-			try {
-				const menuHtmlUrl = `${this.edupageClient.baseUrl}/strava/`;
-				const menuHtml = await this.edupageClient.api({
-					url: menuHtmlUrl,
-					method: 'GET',
-					type: 'text',
-					autoLogin: true,
-				});
-				this.log.warn(`Format 8 (HTML) response length for ${dateStr}: ${menuHtml ? menuHtml.length : 0} chars`);
-				if (menuHtml && typeof menuHtml === 'string' && menuHtml.length > 0) {
-					// Try to extract menu data from HTML
-					// Look for JSON data embedded in HTML
-					const jsonMatch = menuHtml.match(/\.userhome\((.+?)\);/);
-					if (jsonMatch) {
-						try {
-							const parsedData = JSON.parse(jsonMatch[1]);
-							this.log.warn(`Format 8 parsed JSON keys: ${Object.keys(parsedData).join(', ')}`);
-							if (parsedData.strava || parsedData.menu) {
-								return parsedData.strava || parsedData.menu;
-							}
-						} catch (parseError) {
-							this.log.warn(`Format 8 JSON parse error: ${parseError.message}`);
+			// Try Format 8: Check events for menu-related data
+			if (this.edupageClient._data && this.edupageClient._data.events) {
+				this.log.warn(`Checking events for ${dateStr}: ${Array.isArray(this.edupageClient._data.events) ? this.edupageClient._data.events.length : 'not array'} events`);
+				// Events might contain menu information
+				const events = Array.isArray(this.edupageClient._data.events) ? this.edupageClient._data.events : [];
+				for (const event of events) {
+					if (event && (event.type === 'strava' || event.type === 'menu' || event.typ === 'strava' || event.typ === 'menu')) {
+						this.log.warn(`Found menu event: ${JSON.stringify(event)}`);
+						if (event.data || event.menu) {
+							return event.data || event.menu;
 						}
 					}
 				}
-			} catch (error8) {
-				lastError = error8;
-				this.log.warn(`Format 8 error for ${dateStr}: ${error8.message}`);
+			}
+			
+			// Try Format 9: Check if menu is in dbi (database info)
+			if (this.edupageClient._data && this.edupageClient._data.dbi) {
+				const dbiKeys = Object.keys(this.edupageClient._data.dbi || {});
+				const menuRelatedKeys = dbiKeys.filter(key => key.toLowerCase().includes('strava') || key.toLowerCase().includes('menu'));
+				if (menuRelatedKeys.length > 0) {
+					this.log.warn(`Found menu-related keys in dbi: ${menuRelatedKeys.join(', ')}`);
+					for (const key of menuRelatedKeys) {
+						const menuData = this.edupageClient._data.dbi[key];
+						this.log.warn(`dbi[${key}] sample: ${JSON.stringify(menuData).substring(0, 500)}`);
+					}
+				}
 			}
 			
 			// Log the last error for debugging
