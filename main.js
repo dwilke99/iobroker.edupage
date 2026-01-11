@@ -387,47 +387,65 @@ class Edupage extends utils.Adapter {
 				.replace(/'/g, '&#039;');
 		};
 
+		// Helper function to extract date from notification (check both date and timestamp)
+		const extractDate = (notification) => {
+			// Try date first, then timestamp
+			const dateValue = notification.date || notification.timestamp || null;
+			if (!dateValue) {
+				return null;
+			}
+			return new Date(dateValue);
+		};
+
 		// Sort notifications by date descending (newest first)
 		const sortedNotifications = [...notifications].sort((a, b) => {
-			const dateA = a.date ? new Date(a.date).getTime() : 0;
-			const dateB = b.date ? new Date(b.date).getTime() : 0;
-			return dateB - dateA; // Descending (newest first)
+			const dateA = extractDate(a);
+			const dateB = extractDate(b);
+			const timeA = dateA ? dateA.getTime() : 0;
+			const timeB = dateB ? dateB.getTime() : 0;
+			return timeB - timeA; // Descending (newest first)
 		});
 
 		// Format current time
 		const now = new Date();
 		const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-		// Helper function to format date
-		const formatDate = (dateStr) => {
-			if (!dateStr) {
+		// Helper function to format date as DD.MM.
+		const formatDate = (dateObj) => {
+			if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
 				return '';
 			}
-			const date = new Date(dateStr);
-			const day = String(date.getDate()).padStart(2, '0');
-			const month = String(date.getMonth() + 1).padStart(2, '0');
+			const day = String(dateObj.getDate()).padStart(2, '0');
+			const month = String(dateObj.getMonth() + 1).padStart(2, '0');
 			return `${day}.${month}.`;
 		};
 
-		// Build HTML
+		// Build HTML with Flexbox structure
 		let html = '<div class="edu-msg-container">';
 		
-		// Header with update time
-		html += `<div class="edu-msg-header">🔔 Nachrichten <span class="edu-msg-update">Stand: ${timeStr}</span></div>`;
+		// Header (Fixed) - Child 1
+		html += '<div class="edu-msg-header">';
+		html += '<span class="edu-msg-title-text">🔔 Nachrichten</span>';
+		html += `<span class="edu-msg-update">Stand: ${timeStr}</span>`;
+		html += '</div>';
+
+		// Content (Scrollable) - Child 2
+		html += '<div class="edu-msg-content">';
 
 		// Notifications
 		if (sortedNotifications && sortedNotifications.length > 0) {
 			sortedNotifications.forEach(notification => {
 				const sender = escapeHtml(notification.author || 'Unbekannt');
-				const date = formatDate(notification.date);
+				const dateObj = extractDate(notification);
+				const dateStr = formatDate(dateObj);
 				const title = escapeHtml(notification.type || '');
 				const body = escapeHtml(notification.text || '');
 
 				html += '<div class="edu-msg-card">';
 				html += '<div class="edu-msg-meta">';
-				html += `<div class="edu-msg-sender">${sender}</div>`;
-				if (date) {
-					html += `<div class="edu-msg-date">${date}</div>`;
+				html += `<span class="edu-msg-sender">${sender}</span>`;
+				if (dateStr) {
+					html += `<span class="edu-msg-date">${dateStr}</span>`;
 				}
 				html += '</div>';
 				if (title) {
@@ -442,7 +460,8 @@ class Edupage extends utils.Adapter {
 			html += '<div class="edu-msg-empty">Keine Nachrichten</div>';
 		}
 
-		html += '</div>';
+		html += '</div>'; // Close edu-msg-content
+		html += '</div>'; // Close edu-msg-container
 		return html;
 	}
 
