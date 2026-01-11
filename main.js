@@ -152,7 +152,7 @@ class Edupage extends utils.Adapter {
 	}
 
 	/**
-	 * Generate HTML for homework visualization using CSS classes
+	 * Generate HTML for homework visualization using absolute positioning
 	 * @param {Array} pending - Array of pending homework items
 	 * @param {Array} completed - Array of completed homework items
 	 * @returns {string} HTML string ready for VIS
@@ -206,6 +206,10 @@ class Edupage extends utils.Adapter {
 			})
 			.slice(0, 2);
 
+		// Format current time
+		const now = new Date();
+		const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
 		// Helper function to format date
 		const formatDate = (dateStr) => {
 			if (!dateStr) {
@@ -220,22 +224,22 @@ class Edupage extends utils.Adapter {
 			return `${dayName}, ${day}.${month}.`;
 		};
 
-		// Helper function to get card type class
-		const getCardType = (dateStr) => {
+		// Helper function to get border color based on card type
+		const getBorderColor = (dateStr) => {
 			if (!dateStr) {
-				return 'future';
+				return '#3498db'; // Future - blue
 			}
 
 			const dueDate = new Date(dateStr);
 			dueDate.setHours(0, 0, 0, 0);
 
 			if (dueDate.getTime() === today.getTime()) {
-				return 'today';
+				return '#e67e22'; // Today - orange
 			}
 			if (dueDate.getTime() < today.getTime()) {
-				return 'overdue';
+				return '#e74c3c'; // Overdue - red
 			}
-			return 'future';
+			return '#3498db'; // Future - blue
 		};
 
 		// Helper function to escape HTML
@@ -252,61 +256,70 @@ class Edupage extends utils.Adapter {
 		};
 
 		// Helper function to create a card HTML
-		const createCard = (hw, cardType) => {
+		const createCard = (hw, isCompleted = false) => {
 			const subject = escapeHtml(hw.subject || 'Kein Fach');
 			const body = escapeHtml(hw.description || hw.title || '');
 			const dueDateStr = formatDate(hw.dueDate);
+			const borderColor = isCompleted ? '#ccc' : getBorderColor(hw.dueDate);
+			const opacity = isCompleted ? '0.7' : '1';
 
-			let cardHtml = `<div class="edu-hw-card edu-hw-card-${cardType}">`;
-			cardHtml += `<div class="edu-hw-subject">${subject}</div>`;
-			cardHtml += `<div class="edu-hw-date">${dueDateStr}</div>`;
+			let cardHtml = `<div style="background-color: #2d3436; border-left: 4px solid ${borderColor}; margin-bottom: 10px; padding: 12px; border-radius: 4px; opacity: ${opacity};">`;
+			cardHtml += `<div style="font-weight: bold; font-size: 16px; color: #fff; margin-bottom: 4px;">${subject}</div>`;
+			if (dueDateStr) {
+				cardHtml += `<div style="font-size: 12px; color: #95a5a6; margin-bottom: 8px;">${dueDateStr}</div>`;
+			}
 			if (body) {
-				cardHtml += `<div class="edu-hw-body">${body}</div>`;
+				cardHtml += `<div style="font-size: 14px; color: #ecf0f1; line-height: 1.4;">${body}</div>`;
 			}
 			cardHtml += '</div>';
 			return cardHtml;
 		};
 
-		// Build HTML
-		let html = '<div class="edu-hw-container">';
-		
-		// Header with count badge
+		// Build HTML with absolute positioning
 		const totalCount = pending.length + completed.length;
-		html += `<div class="edu-hw-header">📝 Hausaufgaben <span class="edu-badge">${totalCount}</span></div>`;
+		let html = '<div style="position: relative; width: 100%; height: 100%; overflow: hidden; background: #1e1e1e; font-family: \'Segoe UI\', Arial, sans-serif;">';
+		
+		// Header (Fixed) - Absolute positioned
+		html += '<div style="position: absolute; top: 0; left: 0; right: 0; height: 50px; background: #2d3436; color: #fff; padding: 0 15px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #444; box-sizing: border-box; z-index: 10;">';
+		html += `<div>📝 Hausaufgaben <span style="background: #00b894; color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">${totalCount}</span></div>`;
+		html += `<div style="font-size: 11px; color: #ccc;">Stand: ${timeStr}</div>`;
+		html += '</div>';
+
+		// Content (Scrollable) - Absolute positioned
+		html += '<div style="position: absolute; top: 50px; bottom: 0; left: 0; right: 0; overflow-y: auto; padding: 10px; box-sizing: border-box;">';
 
 		// Upcoming section (show FIRST)
 		if (upcoming.length > 0) {
 			upcoming.forEach(hw => {
-				const cardType = getCardType(hw.dueDate);
-				html += createCard(hw, cardType);
+				html += createCard(hw, false);
 			});
 		}
 
 		// Overdue section (show SECOND with separator)
 		if (overdue.length > 0) {
-			// Add separator if there are upcoming items
 			if (upcoming.length > 0) {
-				html += '<div class="edu-hw-separator">Fällig</div>';
+				html += '<div style="color: #e74c3c; font-weight: bold; font-size: 14px; margin: 16px 0 8px 0; padding-top: 16px; border-top: 1px solid #444;">Fällig</div>';
 			}
 			overdue.forEach(hw => {
-				html += createCard(hw, 'overdue');
+				html += createCard(hw, false);
 			});
 		}
 
 		// History section (completed) - show LAST
 		if (history.length > 0) {
-			html += '<div class="edu-hw-separator">Erledigt</div>';
+			html += '<div style="color: #95a5a6; font-weight: bold; font-size: 14px; margin: 16px 0 8px 0; padding-top: 16px; border-top: 1px solid #444;">Erledigt</div>';
 			history.forEach(hw => {
-				html += createCard(hw, 'done');
+				html += createCard(hw, true);
 			});
 		}
 
 		// Empty state
 		if (overdue.length === 0 && upcoming.length === 0 && history.length === 0) {
-			html += '<div class="edu-hw-empty">Keine Hausaufgaben</div>';
+			html += '<div style="text-align: center; padding: 40px 20px; color: #95a5a6; font-size: 16px;">Keine Hausaufgaben</div>';
 		}
 
-		html += '</div>';
+		html += '</div>'; // Close content
+		html += '</div>'; // Close container
 		return html;
 	}
 
@@ -369,7 +382,7 @@ class Edupage extends utils.Adapter {
 	}
 
 	/**
-	 * Generate HTML for notifications visualization using CSS classes
+	 * Generate HTML for notifications visualization using absolute positioning
 	 * @param {Array} notifications - Array of notification objects
 	 * @returns {string} HTML string ready for VIS
 	 */
@@ -387,14 +400,28 @@ class Edupage extends utils.Adapter {
 				.replace(/'/g, '&#039;');
 		};
 
+		// Helper function to convert newlines to <br>
+		const convertNewlines = (text) => {
+			if (!text) {
+				return '';
+			}
+			return String(text).replace(/\n/g, '<br>');
+		};
+
 		// Helper function to extract date from notification (check both date and timestamp)
 		const extractDate = (notification) => {
 			// Try date first, then timestamp
 			const dateValue = notification.date || notification.timestamp || null;
 			if (!dateValue) {
-				return null;
+				// Fallback to current date if neither exists
+				return new Date();
 			}
-			return new Date(dateValue);
+			try {
+				return new Date(dateValue);
+			} catch (e) {
+				// If parsing fails, use current date
+				return new Date();
+			}
 		};
 
 		// Sort notifications by date descending (newest first)
@@ -420,17 +447,17 @@ class Edupage extends utils.Adapter {
 			return `${day}.${month}.`;
 		};
 
-		// Build HTML with Flexbox structure
-		let html = '<div class="edu-msg-container">';
+		// Build HTML with absolute positioning
+		let html = '<div style="position: relative; width: 100%; height: 100%; overflow: hidden; background: #1e1e1e; font-family: \'Segoe UI\', Arial, sans-serif;">';
 		
-		// Header (Fixed) - Child 1
-		html += '<div class="edu-msg-header">';
-		html += '<span class="edu-msg-title-text">🔔 Nachrichten</span>';
-		html += `<span class="edu-msg-update">Stand: ${timeStr}</span>`;
+		// Header (Fixed) - Absolute positioned
+		html += '<div style="position: absolute; top: 0; left: 0; right: 0; height: 50px; background: #2d3436; color: #fff; padding: 0 15px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #444; box-sizing: border-box; z-index: 10;">';
+		html += '<span>🔔 Nachrichten</span>';
+		html += `<span style="font-size: 11px; color: #ccc;">Stand: ${timeStr}</span>`;
 		html += '</div>';
 
-		// Content (Scrollable) - Child 2
-		html += '<div class="edu-msg-content">';
+		// Content (Scrollable) - Absolute positioned
+		html += '<div style="position: absolute; top: 50px; bottom: 0; left: 0; right: 0; overflow-y: auto; padding: 10px; box-sizing: border-box;">';
 
 		// Notifications
 		if (sortedNotifications && sortedNotifications.length > 0) {
@@ -438,30 +465,34 @@ class Edupage extends utils.Adapter {
 				const sender = escapeHtml(notification.author || 'Unbekannt');
 				const dateObj = extractDate(notification);
 				const dateStr = formatDate(dateObj);
-				const title = escapeHtml(notification.type || '');
-				const body = escapeHtml(notification.text || '');
+				const body = notification.text || '';
 
-				html += '<div class="edu-msg-card">';
-				html += '<div class="edu-msg-meta">';
-				html += `<span class="edu-msg-sender">${sender}</span>`;
+				// Card with green border (dark mode styling)
+				html += '<div style="background-color: #2d3436; border-left: 4px solid #00b894; margin-bottom: 10px; padding: 12px; border-radius: 4px;">';
+				
+				// Meta section (sender and date)
+				html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">';
+				html += `<span style="font-size: 12px; font-weight: bold; color: #00b894;">${sender}</span>`;
 				if (dateStr) {
-					html += `<span class="edu-msg-date">${dateStr}</span>`;
+					html += `<span style="font-size: 11px; color: #95a5a6;">${dateStr}</span>`;
 				}
 				html += '</div>';
-				if (title) {
-					html += `<div class="edu-msg-title">${title}</div>`;
-				}
+				
+				// Body text (with newlines converted to <br>)
 				if (body) {
-					html += `<div class="edu-msg-body">${body}</div>`;
+					const bodyEscaped = escapeHtml(body);
+					const bodyWithBreaks = convertNewlines(bodyEscaped);
+					html += `<div style="font-size: 14px; color: #ecf0f1; line-height: 1.4;">${bodyWithBreaks}</div>`;
 				}
+				
 				html += '</div>';
 			});
 		} else {
-			html += '<div class="edu-msg-empty">Keine Nachrichten</div>';
+			html += '<div style="text-align: center; padding: 40px 20px; color: #95a5a6; font-size: 16px;">Keine Nachrichten</div>';
 		}
 
-		html += '</div>'; // Close edu-msg-content
-		html += '</div>'; // Close edu-msg-container
+		html += '</div>'; // Close content
+		html += '</div>'; // Close container
 		return html;
 	}
 
@@ -581,16 +612,29 @@ class Edupage extends utils.Adapter {
 				};
 			});
 
-			const timelineData = timeline.map(msg => {
-				// Extract relevant data from Message objects
-				return {
-					id: msg.id,
-					type: msg.type || null,
-					text: msg.text || null,
-					date: msg.date || null,
-					author: msg.author?.name || null
-				};
-			});
+			const timelineData = timeline
+				.map(msg => {
+					// Extract relevant data from Message objects
+					return {
+						id: msg.id,
+						type: msg.type || null,
+						text: msg.text || null,
+						date: msg.date || null,
+						timestamp: msg.timestamp || null,
+						author: msg.author?.name || null
+					};
+				})
+				.filter(msg => {
+					// Filter out homework items
+					if (msg.type === 'homework') {
+						return false;
+					}
+					// Filter out items with null or empty text
+					if (!msg.text || msg.text.trim() === '') {
+						return false;
+					}
+					return true;
+				});
 
 			// Split homeworks into pending and completed
 			const pendingHomeworks = homeworksData.filter(hw => !hw.isDone);
