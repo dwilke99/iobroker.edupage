@@ -277,13 +277,15 @@ class Edupage extends utils.Adapter {
 			return cardHtml;
 		};
 
+		// Calculate open count (only pending tasks, not completed)
+		const openCount = allHomework.filter(hw => hw.isDone === false).length;
+
 		// Build HTML
 		let html = '<div class="edu-hw-container">';
 		
 		// Header with count badge and timestamp
-		const totalCount = allHomework.length;
 		html += '<div class="edu-hw-header">';
-		html += `<div>📝 Hausaufgaben <span class="edu-badge">${totalCount}</span></div>`;
+		html += `<div>📝 Hausaufgaben <span class="edu-badge">${openCount}</span></div>`;
 		html += `<div style="font-size: 11px; color: #ccc;">Stand: ${timeStr}</div>`;
 		html += '</div>';
 
