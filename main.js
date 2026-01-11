@@ -153,72 +153,30 @@ class Edupage extends utils.Adapter {
 
 	/**
 	 * Generate HTML for homework visualization using CSS classes
+	 * Single chronological timeline sorted by date (oldest first)
 	 * @param {Array} pending - Array of pending homework items
 	 * @param {Array} completed - Array of completed homework items
 	 * @returns {string} HTML string ready for VIS
 	 */
 	generateHomeworkHTML(pending, completed) {
-		// Set now to today at 00:00:00 for strict date comparison
-		const now = new Date();
-		now.setHours(0, 0, 0, 0);
+		// Set today at 00:00:00 for date comparison
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
 
-		// Split pending array into overdue and upcoming
-		const overdue = [];
-		const upcoming = [];
+		// Merge pending and completed into one array
+		const allHomework = [...pending, ...completed];
 
-		pending.forEach(hw => {
-			if (!hw.dueDate) {
-				// Items without dueDate go to upcoming
-				upcoming.push(hw);
-				return;
-			}
-
-			// Parse dueDate and set time to 00:00:00
-			const dueDate = new Date(hw.dueDate);
-			dueDate.setHours(0, 0, 0, 0);
-
-			// Strict date comparison
-			if (dueDate.getTime() < now.getTime()) {
-				// Past date -> overdue
-				overdue.push(hw);
-			} else {
-				// Today or future -> upcoming
-				upcoming.push(hw);
-			}
-		});
-
-		// Sort upcoming: ascending date (nearest first)
-		upcoming.sort((a, b) => {
-			if (!a.dueDate && !b.dueDate) return 0;
-			if (!a.dueDate) return 1; // No date goes to end
-			if (!b.dueDate) return -1; // No date goes to end
-			const dateA = new Date(a.dueDate).getTime();
-			const dateB = new Date(b.dueDate).getTime();
-			return dateA - dateB; // Ascending (soonest first)
-		});
-
-		// Sort overdue: descending date (most recent overdue first)
-		overdue.sort((a, b) => {
+		// Sort by dueDate ascending (oldest first)
+		allHomework.sort((a, b) => {
+			// Items without dueDate go to the end
 			if (!a.dueDate && !b.dueDate) return 0;
 			if (!a.dueDate) return 1;
 			if (!b.dueDate) return -1;
+			
 			const dateA = new Date(a.dueDate).getTime();
 			const dateB = new Date(b.dueDate).getTime();
-			return dateB - dateA; // Descending (newest first)
+			return dateA - dateB; // Ascending (oldest first)
 		});
-
-		// Process completed array as history
-		// Sort history: descending date (most recently done first), limit to 2
-		const history = [...completed]
-			.sort((a, b) => {
-				if (!a.dueDate && !b.dueDate) return 0;
-				if (!a.dueDate) return 1;
-				if (!b.dueDate) return -1;
-				const dateA = new Date(a.dueDate).getTime();
-				const dateB = new Date(b.dueDate).getTime();
-				return dateB - dateA; // Descending (newest first)
-			})
-			.slice(0, 2);
 
 		// Format current time for header
 		const timeNow = new Date();
@@ -251,20 +209,56 @@ class Edupage extends utils.Adapter {
 				.replace(/'/g, '&#039;');
 		};
 
+		// Helper function to determine status and card type
+		const getStatus = (hw) => {
+			if (hw.isDone === true) {
+				return { type: 'done', icon: '✅' };
+			}
+
+			if (!hw.dueDate) {
+				return { type: 'future', icon: '' };
+			}
+
+			const dueDate = new Date(hw.dueDate);
+			dueDate.setHours(0, 0, 0, 0);
+
+			if (dueDate.getTime() < today.getTime()) {
+				return { type: 'overdue', icon: '❗' };
+			}
+			if (dueDate.getTime() === today.getTime()) {
+				return { type: 'today', icon: '' };
+			}
+			return { type: 'future', icon: '' };
+		};
+
 		// Helper function to create a card HTML
-		const createCard = (hw, cardType) => {
+		const createCard = (hw) => {
+			const status = getStatus(hw);
 			const subject = escapeHtml(hw.subject || 'Kein Fach');
-			const body = escapeHtml(hw.description || hw.title || '');
+			const title = escapeHtml(hw.title || '');
+			const description = escapeHtml(hw.description || '');
 			const dueDateStr = formatDate(hw.dueDate);
 
-			let cardHtml = `<div class="edu-hw-card edu-hw-card-${cardType}">`;
-			cardHtml += `<div class="edu-hw-subject">${subject}</div>`;
+			let cardHtml = `<div class="edu-hw-card edu-hw-card-${status.type}">`;
+			
+			// Subject with icon
+			cardHtml += `<div class="edu-hw-subject">${status.icon ? status.icon + ' ' : ''}${subject}</div>`;
+			
+			// Date
 			if (dueDateStr) {
 				cardHtml += `<div class="edu-hw-date">${dueDateStr}</div>`;
 			}
-			if (body) {
-				cardHtml += `<div class="edu-hw-body">${body}</div>`;
+			
+			// Title
+			if (title) {
+				cardHtml += `<div class="edu-hw-title">${title}</div>`;
 			}
+			
+			// Description/Body
+			if (description) {
+				cardHtml += `<div class="edu-hw-body">${description}</div>`;
+			}
+			
 			cardHtml += '</div>';
 			return cardHtml;
 		};
@@ -273,42 +267,21 @@ class Edupage extends utils.Adapter {
 		let html = '<div class="edu-hw-container">';
 		
 		// Header with count badge and timestamp
-		const totalCount = pending.length + completed.length;
+		const totalCount = allHomework.length;
 		html += '<div class="edu-hw-header">';
 		html += `<div>📝 Hausaufgaben <span class="edu-badge">${totalCount}</span></div>`;
 		html += `<div style="font-size: 11px; color: #ccc;">Stand: ${timeStr}</div>`;
 		html += '</div>';
 
-		// Content list
+		// Content list - single chronological timeline
 		html += '<div class="edu-hw-list">';
 
-		// Section 1: Upcoming
-		if (upcoming.length > 0) {
-			upcoming.forEach(hw => {
-				html += createCard(hw, 'future');
+		// Loop through sorted items
+		if (allHomework.length > 0) {
+			allHomework.forEach(hw => {
+				html += createCard(hw);
 			});
-		}
-
-		// Section 2: Overdue (only if exists)
-		if (overdue.length > 0) {
-			// Add separator
-			html += '<div class="edu-hw-separator">FÄLLIGKEIT ÜBERSCHRITTEN</div>';
-			overdue.forEach(hw => {
-				html += createCard(hw, 'overdue');
-			});
-		}
-
-		// Section 3: History (only if exists)
-		if (history.length > 0) {
-			// Add separator with border
-			html += '<div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #444;"></div>';
-			history.forEach(hw => {
-				html += createCard(hw, 'done');
-			});
-		}
-
-		// Empty state
-		if (overdue.length === 0 && upcoming.length === 0 && history.length === 0) {
+		} else {
 			html += '<div class="edu-hw-empty">Keine Hausaufgaben</div>';
 		}
 
