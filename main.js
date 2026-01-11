@@ -369,6 +369,84 @@ class Edupage extends utils.Adapter {
 	}
 
 	/**
+	 * Generate HTML for notifications visualization using CSS classes
+	 * @param {Array} notifications - Array of notification objects
+	 * @returns {string} HTML string ready for VIS
+	 */
+	generateNotificationHTML(notifications) {
+		// Helper function to escape HTML
+		const escapeHtml = (text) => {
+			if (!text) {
+				return '';
+			}
+			return String(text)
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;')
+				.replace(/'/g, '&#039;');
+		};
+
+		// Sort notifications by date descending (newest first)
+		const sortedNotifications = [...notifications].sort((a, b) => {
+			const dateA = a.date ? new Date(a.date).getTime() : 0;
+			const dateB = b.date ? new Date(b.date).getTime() : 0;
+			return dateB - dateA; // Descending (newest first)
+		});
+
+		// Format current time
+		const now = new Date();
+		const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+		// Helper function to format date
+		const formatDate = (dateStr) => {
+			if (!dateStr) {
+				return '';
+			}
+			const date = new Date(dateStr);
+			const day = String(date.getDate()).padStart(2, '0');
+			const month = String(date.getMonth() + 1).padStart(2, '0');
+			return `${day}.${month}.`;
+		};
+
+		// Build HTML
+		let html = '<div class="edu-msg-container">';
+		
+		// Header with update time
+		html += `<div class="edu-msg-header">🔔 Nachrichten <span class="edu-msg-update">Stand: ${timeStr}</span></div>`;
+
+		// Notifications
+		if (sortedNotifications && sortedNotifications.length > 0) {
+			sortedNotifications.forEach(notification => {
+				const sender = escapeHtml(notification.author || 'Unbekannt');
+				const date = formatDate(notification.date);
+				const title = escapeHtml(notification.type || '');
+				const body = escapeHtml(notification.text || '');
+
+				html += '<div class="edu-msg-card">';
+				html += '<div class="edu-msg-meta">';
+				html += `<div class="edu-msg-sender">${sender}</div>`;
+				if (date) {
+					html += `<div class="edu-msg-date">${date}</div>`;
+				}
+				html += '</div>';
+				if (title) {
+					html += `<div class="edu-msg-title">${title}</div>`;
+				}
+				if (body) {
+					html += `<div class="edu-msg-body">${body}</div>`;
+				}
+				html += '</div>';
+			});
+		} else {
+			html += '<div class="edu-msg-empty">Keine Nachrichten</div>';
+		}
+
+		html += '</div>';
+		return html;
+	}
+
+	/**
 	 * Calculate the next school day from a given date
 	 * If date is Friday, Saturday, or Sunday -> returns Monday
 	 * Otherwise -> returns date + 1 day
@@ -625,6 +703,10 @@ class Edupage extends utils.Adapter {
 			const todayNotificationsJson = JSON.stringify(todayNotifications);
 			await this.setState('data.notifications.today_json', { val: todayNotificationsJson, ack: true });
 			await this.setState('data.notifications.all_json', { val: notificationsJson, ack: true });
+
+			// Generate and save HTML for notifications
+			const notificationHTML = this.generateNotificationHTML(timelineData);
+			await this.setState('data.notifications.vis_html', { val: notificationHTML, ack: true });
 
 			// Process timetable lessons for today
 			let todayLessons = [];

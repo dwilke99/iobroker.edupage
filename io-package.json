@@ -244,6 +244,18 @@
 			"native": {}
 		},
 		{
+			"_id": "data.notifications.vis_html",
+			"type": "state",
+			"common": {
+				"name": "Notifications HTML for VIS",
+				"type": "string",
+				"role": "html",
+				"read": true,
+				"write": false
+			},
+			"native": {}
+		},
+		{
 			"_id": "info.student_name",
 			"type": "state",
 			"common": {
