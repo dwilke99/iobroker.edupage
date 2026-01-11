@@ -153,7 +153,7 @@ class Edupage extends utils.Adapter {
 
 	/**
 	 * Generate HTML for homework visualization using CSS classes
-	 * Single chronological timeline sorted by date (oldest first)
+	 * Single chronological timeline sorted by date descending (newest/furthest first)
 	 * @param {Array} pending - Array of pending homework items
 	 * @param {Array} completed - Array of completed homework items
 	 * @returns {string} HTML string ready for VIS
@@ -166,7 +166,7 @@ class Edupage extends utils.Adapter {
 		// Merge pending and completed into one array
 		const allHomework = [...pending, ...completed];
 
-		// Sort by dueDate ascending (oldest first)
+		// Sort by dueDate descending (newest/furthest in future at the top)
 		allHomework.sort((a, b) => {
 			// Items without dueDate go to the end
 			if (!a.dueDate && !b.dueDate) return 0;
@@ -175,7 +175,7 @@ class Edupage extends utils.Adapter {
 			
 			const dateA = new Date(a.dueDate).getTime();
 			const dateB = new Date(b.dueDate).getTime();
-			return dateA - dateB; // Ascending (oldest first)
+			return dateB - dateA; // Descending (newest/furthest first)
 		});
 
 		// Format current time for header
@@ -209,54 +209,68 @@ class Edupage extends utils.Adapter {
 				.replace(/'/g, '&#039;');
 		};
 
-		// Helper function to determine status and card type
-		const getStatus = (hw) => {
+		// Helper function to determine card class
+		const getCardClass = (hw) => {
 			if (hw.isDone === true) {
-				return { type: 'done', icon: '✅' };
+				return 'edu-hw-card edu-hw-card-done';
 			}
 
 			if (!hw.dueDate) {
-				return { type: 'future', icon: '' };
+				return 'edu-hw-card edu-hw-card-future';
 			}
 
 			const dueDate = new Date(hw.dueDate);
 			dueDate.setHours(0, 0, 0, 0);
 
 			if (dueDate.getTime() < today.getTime()) {
-				return { type: 'overdue', icon: '❗' };
+				return 'edu-hw-card edu-hw-card-overdue';
 			}
 			if (dueDate.getTime() === today.getTime()) {
-				return { type: 'today', icon: '' };
+				return 'edu-hw-card edu-hw-card-today';
 			}
-			return { type: 'future', icon: '' };
+			return 'edu-hw-card edu-hw-card-future';
+		};
+
+		// Helper function to determine title prefix
+		const getTitlePrefix = (hw) => {
+			if (hw.isDone === true) {
+				return '✅ ';
+			}
+
+			if (!hw.dueDate) {
+				return '';
+			}
+
+			const dueDate = new Date(hw.dueDate);
+			dueDate.setHours(0, 0, 0, 0);
+
+			if (dueDate.getTime() < today.getTime()) {
+				return '❗ ';
+			}
+			return '';
 		};
 
 		// Helper function to create a card HTML
 		const createCard = (hw) => {
-			const status = getStatus(hw);
+			const cardClass = getCardClass(hw);
+			const prefix = getTitlePrefix(hw);
 			const subject = escapeHtml(hw.subject || 'Kein Fach');
-			const title = escapeHtml(hw.title || '');
-			const description = escapeHtml(hw.description || '');
+			const body = escapeHtml(hw.description || hw.title || '');
 			const dueDateStr = formatDate(hw.dueDate);
 
-			let cardHtml = `<div class="edu-hw-card edu-hw-card-${status.type}">`;
+			let cardHtml = `<div class="${cardClass}">`;
 			
-			// Subject with icon
-			cardHtml += `<div class="edu-hw-subject">${status.icon ? status.icon + ' ' : ''}${subject}</div>`;
+			// Subject with prefix
+			cardHtml += `<div class="edu-hw-subject">${prefix}${subject}</div>`;
 			
 			// Date
 			if (dueDateStr) {
 				cardHtml += `<div class="edu-hw-date">${dueDateStr}</div>`;
 			}
 			
-			// Title
-			if (title) {
-				cardHtml += `<div class="edu-hw-title">${title}</div>`;
-			}
-			
-			// Description/Body
-			if (description) {
-				cardHtml += `<div class="edu-hw-body">${description}</div>`;
+			// Body
+			if (body) {
+				cardHtml += `<div class="edu-hw-body">${body}</div>`;
 			}
 			
 			cardHtml += '</div>';
