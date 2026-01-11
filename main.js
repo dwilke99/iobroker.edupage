@@ -158,53 +158,71 @@ class Edupage extends utils.Adapter {
 	 * @returns {string} HTML string ready for VIS
 	 */
 	generateHomeworkHTML(pending, completed) {
-		const today = new Date();
-		today.setHours(0, 0, 0, 0);
-		const tomorrow = new Date(today);
-		tomorrow.setDate(today.getDate() + 1);
+		// Set now to today at 00:00:00 for strict date comparison
+		const now = new Date();
+		now.setHours(0, 0, 0, 0);
 
-		// Categorize and sort pending items
+		// Split pending array into overdue and upcoming
 		const overdue = [];
 		const upcoming = [];
 
 		pending.forEach(hw => {
 			if (!hw.dueDate) {
+				// Items without dueDate go to upcoming
 				upcoming.push(hw);
 				return;
 			}
 
+			// Parse dueDate and set time to 00:00:00
 			const dueDate = new Date(hw.dueDate);
 			dueDate.setHours(0, 0, 0, 0);
 
-			if (dueDate.getTime() < today.getTime()) {
+			// Strict date comparison
+			if (dueDate.getTime() < now.getTime()) {
+				// Past date -> overdue
 				overdue.push(hw);
 			} else {
+				// Today or future -> upcoming
 				upcoming.push(hw);
 			}
 		});
 
-		// Sort overdue: newest overdue first
-		overdue.sort((a, b) => {
-			const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
-			const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
-			return dateB - dateA; // Descending (newest first)
-		});
-
-		// Sort upcoming: sooner due dates first
+		// Sort upcoming: ascending date (nearest first)
 		upcoming.sort((a, b) => {
-			const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 9999999999999;
-			const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 9999999999999;
+			if (!a.dueDate && !b.dueDate) return 0;
+			if (!a.dueDate) return 1; // No date goes to end
+			if (!b.dueDate) return -1; // No date goes to end
+			const dateA = new Date(a.dueDate).getTime();
+			const dateB = new Date(b.dueDate).getTime();
 			return dateA - dateB; // Ascending (soonest first)
 		});
 
-		// Sort completed: newest done first, limit to 2
+		// Sort overdue: descending date (most recent overdue first)
+		overdue.sort((a, b) => {
+			if (!a.dueDate && !b.dueDate) return 0;
+			if (!a.dueDate) return 1;
+			if (!b.dueDate) return -1;
+			const dateA = new Date(a.dueDate).getTime();
+			const dateB = new Date(b.dueDate).getTime();
+			return dateB - dateA; // Descending (newest first)
+		});
+
+		// Process completed array as history
+		// Sort history: descending date (most recently done first), limit to 2
 		const history = [...completed]
 			.sort((a, b) => {
-				const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
-				const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+				if (!a.dueDate && !b.dueDate) return 0;
+				if (!a.dueDate) return 1;
+				if (!b.dueDate) return -1;
+				const dateA = new Date(a.dueDate).getTime();
+				const dateB = new Date(b.dueDate).getTime();
 				return dateB - dateA; // Descending (newest first)
 			})
 			.slice(0, 2);
+
+		// Format current time for header
+		const timeNow = new Date();
+		const timeStr = `${String(timeNow.getHours()).padStart(2, '0')}:${String(timeNow.getMinutes()).padStart(2, '0')}`;
 
 		// Helper function to format date
 		const formatDate = (dateStr) => {
@@ -218,24 +236,6 @@ class Edupage extends utils.Adapter {
 			const dayNames = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 			const dayName = dayNames[date.getDay()];
 			return `${dayName}, ${day}.${month}.`;
-		};
-
-		// Helper function to get card type class
-		const getCardType = (dateStr) => {
-			if (!dateStr) {
-				return 'future';
-			}
-
-			const dueDate = new Date(dateStr);
-			dueDate.setHours(0, 0, 0, 0);
-
-			if (dueDate.getTime() === today.getTime()) {
-				return 'today';
-			}
-			if (dueDate.getTime() < today.getTime()) {
-				return 'overdue';
-			}
-			return 'future';
 		};
 
 		// Helper function to escape HTML
@@ -259,7 +259,9 @@ class Edupage extends utils.Adapter {
 
 			let cardHtml = `<div class="edu-hw-card edu-hw-card-${cardType}">`;
 			cardHtml += `<div class="edu-hw-subject">${subject}</div>`;
-			cardHtml += `<div class="edu-hw-date">${dueDateStr}</div>`;
+			if (dueDateStr) {
+				cardHtml += `<div class="edu-hw-date">${dueDateStr}</div>`;
+			}
 			if (body) {
 				cardHtml += `<div class="edu-hw-body">${body}</div>`;
 			}
@@ -270,32 +272,36 @@ class Edupage extends utils.Adapter {
 		// Build HTML
 		let html = '<div class="edu-hw-container">';
 		
-		// Header with count badge
+		// Header with count badge and timestamp
 		const totalCount = pending.length + completed.length;
-		html += `<div class="edu-hw-header">📝 Hausaufgaben <span class="edu-badge">${totalCount}</span></div>`;
+		html += '<div class="edu-hw-header">';
+		html += `<div>📝 Hausaufgaben <span class="edu-badge">${totalCount}</span></div>`;
+		html += `<div style="font-size: 11px; color: #ccc;">Stand: ${timeStr}</div>`;
+		html += '</div>';
 
-		// Upcoming section (show FIRST)
+		// Content list
+		html += '<div class="edu-hw-list">';
+
+		// Section 1: Upcoming
 		if (upcoming.length > 0) {
 			upcoming.forEach(hw => {
-				const cardType = getCardType(hw.dueDate);
-				html += createCard(hw, cardType);
+				html += createCard(hw, 'future');
 			});
 		}
 
-		// Overdue section (show SECOND with separator)
+		// Section 2: Overdue (only if exists)
 		if (overdue.length > 0) {
-			// Add separator if there are upcoming items
-			if (upcoming.length > 0) {
-				html += '<div class="edu-hw-separator">Fällig</div>';
-			}
+			// Add separator
+			html += '<div class="edu-hw-separator">FÄLLIGKEIT ÜBERSCHRITTEN</div>';
 			overdue.forEach(hw => {
 				html += createCard(hw, 'overdue');
 			});
 		}
 
-		// History section (completed) - show LAST
+		// Section 3: History (only if exists)
 		if (history.length > 0) {
-			html += '<div class="edu-hw-separator">Erledigt</div>';
+			// Add separator with border
+			html += '<div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #444;"></div>';
 			history.forEach(hw => {
 				html += createCard(hw, 'done');
 			});
@@ -306,7 +312,8 @@ class Edupage extends utils.Adapter {
 			html += '<div class="edu-hw-empty">Keine Hausaufgaben</div>';
 		}
 
-		html += '</div>';
+		html += '</div>'; // Close edu-hw-list
+		html += '</div>'; // Close edu-hw-container
 		return html;
 	}
 
