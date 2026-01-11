@@ -310,6 +310,18 @@
 				"write": false
 			},
 			"native": {}
+		},
+		{
+			"_id": "data.classes.today_html",
+			"type": "state",
+			"common": {
+				"name": "Today's Classes (HTML)",
+				"type": "string",
+				"role": "html",
+				"read": true,
+				"write": false
+			},
+			"native": {}
 		}
 	]
 }

@@ -152,7 +152,7 @@ class Edupage extends utils.Adapter {
 	}
 
 	/**
-	 * Generate HTML for homework visualization
+	 * Generate HTML for homework visualization using CSS classes
 	 * @param {Array} pending - Array of pending homework items
 	 * @param {Array} completed - Array of completed homework items
 	 * @returns {string} HTML string ready for VIS
@@ -214,29 +214,28 @@ class Edupage extends utils.Adapter {
 			const date = new Date(dateStr);
 			const day = String(date.getDate()).padStart(2, '0');
 			const month = String(date.getMonth() + 1).padStart(2, '0');
-			const year = date.getFullYear();
-			return `${day}.${month}.${year}`;
+			// Get day name
+			const dayNames = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+			const dayName = dayNames[date.getDay()];
+			return `${dayName}, ${day}.${month}.`;
 		};
 
-		// Helper function to get date label and color
-		const getDateInfo = (dateStr) => {
+		// Helper function to get card type class
+		const getCardType = (dateStr) => {
 			if (!dateStr) {
-				return { label: '', color: '#3498db', prefix: '' };
+				return 'future';
 			}
 
 			const dueDate = new Date(dateStr);
 			dueDate.setHours(0, 0, 0, 0);
 
 			if (dueDate.getTime() === today.getTime()) {
-				return { label: 'Heute', color: '#e67e22', prefix: '' };
-			}
-			if (dueDate.getTime() === tomorrow.getTime()) {
-				return { label: 'Morgen', color: '#3498db', prefix: '' };
+				return 'today';
 			}
 			if (dueDate.getTime() < today.getTime()) {
-				return { label: '', color: '#e74c3c', prefix: '❗ ' };
+				return 'overdue';
 			}
-			return { label: '', color: '#3498db', prefix: '' };
+			return 'future';
 		};
 
 		// Helper function to escape HTML
@@ -253,35 +252,33 @@ class Edupage extends utils.Adapter {
 		};
 
 		// Helper function to create a card HTML
-		const createCard = (hw, borderColor, dateLabel, datePrefix, isCompleted = false) => {
+		const createCard = (hw, cardType) => {
 			const subject = escapeHtml(hw.subject || 'Kein Fach');
-			const title = escapeHtml(hw.title || 'Kein Titel');
-			const description = escapeHtml(hw.description || '');
+			const body = escapeHtml(hw.description || hw.title || '');
 			const dueDateStr = formatDate(hw.dueDate);
-			const opacity = isCompleted ? 'opacity: 0.7;' : '';
 
-			return `
-<div style="background-color: #ffffff; border-left: 4px solid ${borderColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 12px; padding: 16px; font-family: Arial, sans-serif; font-size: 16px; ${opacity}">
-	<div style="font-weight: bold; font-size: 18px; color: #333; margin-bottom: 6px;">${subject}</div>
-	<div style="font-size: 16px; color: #555; margin-bottom: 10px;">${title}</div>
-	${description ? `<div style="font-size: 14px; color: #777; margin-bottom: 10px;">${description}</div>` : ''}
-	<div style="font-size: 14px; color: #999;">
-		${datePrefix}${dueDateStr}${dateLabel ? ` - ${dateLabel}` : ''}
-	</div>
-</div>`;
+			let cardHtml = `<div class="edu-hw-card edu-hw-card-${cardType}">`;
+			cardHtml += `<div class="edu-hw-subject">${subject}</div>`;
+			cardHtml += `<div class="edu-hw-date">${dueDateStr}</div>`;
+			if (body) {
+				cardHtml += `<div class="edu-hw-body">${body}</div>`;
+			}
+			cardHtml += '</div>';
+			return cardHtml;
 		};
 
 		// Build HTML
-		let html = '<div style="font-family: Arial, sans-serif; font-size: 16px;">';
+		let html = '<div class="edu-hw-container">';
 		
-		// Header with dark background and white text
-		html += '<div style="background-color: #2c3e50; color: #ffffff; padding: 12px; border-radius: 8px 8px 0 0; font-size: 20px; font-weight: bold; margin-bottom: 16px;">📝 Hausaufgaben</div>';
+		// Header with count badge
+		const totalCount = pending.length + completed.length;
+		html += `<div class="edu-hw-header">📝 Hausaufgaben <span class="edu-badge">${totalCount}</span></div>`;
 
 		// Upcoming section (show FIRST)
 		if (upcoming.length > 0) {
 			upcoming.forEach(hw => {
-				const dateInfo = getDateInfo(hw.dueDate);
-				html += createCard(hw, dateInfo.color, dateInfo.label, dateInfo.prefix);
+				const cardType = getCardType(hw.dueDate);
+				html += createCard(hw, cardType);
 			});
 		}
 
@@ -289,31 +286,82 @@ class Edupage extends utils.Adapter {
 		if (overdue.length > 0) {
 			// Add separator if there are upcoming items
 			if (upcoming.length > 0) {
-				html += '<div style="margin-top: 24px; padding-top: 16px; border-top: 2px solid #e74c3c;">';
-				html += '<div style="font-size: 16px; font-weight: bold; color: #e74c3c; margin-bottom: 12px;">Überfällig</div>';
+				html += '<div class="edu-hw-separator">Fällig</div>';
 			}
 			overdue.forEach(hw => {
-				const dateInfo = getDateInfo(hw.dueDate);
-				html += createCard(hw, dateInfo.color, dateInfo.label, dateInfo.prefix);
+				html += createCard(hw, 'overdue');
 			});
-			if (upcoming.length > 0) {
-				html += '</div>';
-			}
 		}
 
 		// History section (completed) - show LAST
 		if (history.length > 0) {
-			html += '<div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #ddd;">';
-			html += '<div style="font-size: 16px; font-weight: bold; color: #999; margin-bottom: 12px;">Erledigt</div>';
+			html += '<div class="edu-hw-separator">Erledigt</div>';
 			history.forEach(hw => {
-				html += createCard(hw, '#ccc', '', '', true);
+				html += createCard(hw, 'done');
 			});
-			html += '</div>';
 		}
 
 		// Empty state
 		if (overdue.length === 0 && upcoming.length === 0 && history.length === 0) {
-			html += '<div style="text-align: center; padding: 20px; color: #999; font-size: 16px;">Keine Hausaufgaben</div>';
+			html += '<div class="edu-hw-empty">Keine Hausaufgaben</div>';
+		}
+
+		html += '</div>';
+		return html;
+	}
+
+	/**
+	 * Generate HTML for timetable visualization using CSS classes
+	 * @param {Array} lessons - Array of lesson objects for today
+	 * @returns {string} HTML string ready for VIS
+	 */
+	generateTimetableHTML(lessons) {
+		// Helper function to escape HTML
+		const escapeHtml = (text) => {
+			if (!text) {
+				return '';
+			}
+			return String(text)
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;')
+				.replace(/'/g, '&#039;');
+		};
+
+		// Format current time
+		const now = new Date();
+		const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+		// Build HTML
+		let html = '<div class="edu-tt-container">';
+		
+		// Header with update time
+		html += `<div class="edu-tt-header">Heute <span class="edu-tt-update">Stand: ${timeStr}</span></div>`;
+
+		// Lessons
+		if (lessons && lessons.length > 0) {
+			lessons.forEach(lesson => {
+				const period = escapeHtml(lesson.period || '');
+				const subject = escapeHtml(lesson.subject || '');
+				const startTime = escapeHtml(lesson.startTime || '');
+				const room = escapeHtml(lesson.room || '');
+
+				html += '<div class="edu-tt-row">';
+				html += `<div class="edu-tt-period">${period}</div>`;
+				html += '<div class="edu-tt-details">';
+				html += `<div class="edu-tt-subject">${subject}</div>`;
+				if (startTime) {
+					html += `<div class="edu-tt-time">${startTime}</div>`;
+				}
+				html += '</div>';
+				if (room) {
+					html += `<div class="edu-tt-room">${room}</div>`;
+				}
+				html += '</div>';
+			});
+		} else {
+			html += '<div class="edu-tt-empty">Keine Stunden heute</div>';
 		}
 
 		html += '</div>';
@@ -662,6 +710,10 @@ class Edupage extends utils.Adapter {
 			// Save timetable data (clear if empty)
 			await this.setState('data.classes.today_json', { val: JSON.stringify(todayLessons.length > 0 ? todayLessons : []), ack: true });
 			await this.setState('data.classes.tomorrow_json', { val: JSON.stringify(nextSchoolDayLessons.length > 0 ? nextSchoolDayLessons : []), ack: true });
+
+			// Generate and save HTML for timetable
+			const timetableHTML = this.generateTimetableHTML(todayLessons);
+			await this.setState('data.classes.today_html', { val: timetableHTML, ack: true });
 
 			this.log.debug(`Synced ${homeworks.length} homeworks (${pendingHomeworks.length} pending, ${completedHomeworks.length} completed), ${timeline.length} notifications (${todayNotifications.length} today), ${todayLessons.length} lessons today, ${nextSchoolDayLessons.length} lessons next school day`);
 
