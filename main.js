@@ -541,7 +541,7 @@ class Edupage extends utils.Adapter {
 					// Check if homework is assigned to our target student
 					// Homeworks might have student IDs in the data structure
 					if (hw.students && Array.isArray(hw.students)) {
-						return hw.students.some(s => s.id === this.studentId);
+						return hw.students.some(s => s && s.id === this.studentId);
 					}
 					// If no students array, include it (might be class-wide)
 					return true;
@@ -551,7 +551,7 @@ class Edupage extends utils.Adapter {
 				timeline = timeline.filter(msg => {
 					// Check if message is for our target student
 					if (msg.students && Array.isArray(msg.students)) {
-						return msg.students.some(s => s.id === this.studentId);
+						return msg.students.some(s => s && s.id === this.studentId);
 					}
 					// Check if message author is our target student
 					if (msg.author && msg.author.id === this.studentId) {
@@ -626,6 +626,7 @@ class Edupage extends utils.Adapter {
 				todayTimetable.lessons.forEach(lesson => {
 					if (lesson.teachers && Array.isArray(lesson.teachers)) {
 						lesson.teachers.forEach(teacher => {
+							if (!teacher) return; // Skip if teacher is undefined
 							const teacherName = teacher.name || (teacher.firstName && teacher.lastName ? `${teacher.firstName} ${teacher.lastName}` : null) || (teacher.firstname && teacher.lastname ? `${teacher.firstname} ${teacher.lastname}` : null);
 							const subjectName = lesson.subject ? lesson.subject.name : null;
 							if (teacherName && teacher.id) {
@@ -651,6 +652,7 @@ class Edupage extends utils.Adapter {
 				nextSchoolDayTimetable.lessons.forEach(lesson => {
 					if (lesson.teachers && Array.isArray(lesson.teachers)) {
 						lesson.teachers.forEach(teacher => {
+							if (!teacher) return; // Skip if teacher is undefined
 							const teacherName = teacher.name || (teacher.firstName && teacher.lastName ? `${teacher.firstName} ${teacher.lastName}` : null) || (teacher.firstname && teacher.lastname ? `${teacher.firstname} ${teacher.lastname}` : null);
 							const subjectName = lesson.subject ? lesson.subject.name : null;
 							if (teacherName && teacher.id) {
@@ -732,7 +734,7 @@ class Edupage extends utils.Adapter {
 					lessonsToProcess = todayTimetable.lessons.filter(lesson => {
 						// Check if this lesson includes our student
 						if (lesson.students && Array.isArray(lesson.students)) {
-							return lesson.students.some(student => student.id === this.studentId);
+							return lesson.students.some(student => student && student.id === this.studentId);
 						}
 						// If no students array, include the lesson (might be class-wide)
 						return true;
@@ -770,7 +772,7 @@ class Edupage extends utils.Adapter {
 					lessonsToProcess = nextSchoolDayTimetable.lessons.filter(lesson => {
 						// Check if this lesson includes our student
 						if (lesson.students && Array.isArray(lesson.students)) {
-							return lesson.students.some(student => student.id === this.studentId);
+							return lesson.students.some(student => student && student.id === this.studentId);
 						}
 						// If no students array, include the lesson (might be class-wide)
 						return true;
